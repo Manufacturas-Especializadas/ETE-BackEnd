@@ -33,22 +33,17 @@ public partial class AppDbContext : DbContext
     {
         modelBuilder.Entity<Codes>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Codes__3214EC07429664A8");
+            entity.HasKey(e => e.Id).HasName("PK__Codes__3214EC077B49E85A");
 
             entity.Property(e => e.Name)
                 .HasMaxLength(40)
                 .IsUnicode(false)
                 .HasColumnName("name");
-            entity.Property(e => e.ReasonId).HasColumnName("reasonId");
-
-            entity.HasOne(d => d.Reason).WithMany(p => p.Codes)
-                .HasForeignKey(d => d.ReasonId)
-                .HasConstraintName("FK__Codes__reasonId__46E78A0C");
         });
 
         modelBuilder.Entity<DeadTimes>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__DeadTime__3214EC074BF72F80");
+            entity.HasKey(e => e.Id).HasName("PK__DeadTime__3214EC0713927D25");
 
             entity.Property(e => e.CodeId).HasColumnName("codeId");
             entity.Property(e => e.Minutes).HasColumnName("minutes");
@@ -56,11 +51,11 @@ public partial class AppDbContext : DbContext
 
             entity.HasOne(d => d.Code).WithMany(p => p.DeadTimes)
                 .HasForeignKey(d => d.CodeId)
-                .HasConstraintName("FK__DeadTimes__codeI__49C3F6B7");
+                .HasConstraintName("FK__DeadTimes__codeI__628FA481");
 
             entity.HasOne(d => d.Reason).WithMany(p => p.DeadTimes)
                 .HasForeignKey(d => d.ReasonId)
-                .HasConstraintName("FK__DeadTimes__reaso__4AB81AF0");
+                .HasConstraintName("FK__DeadTimes__reaso__6383C8BA");
         });
 
         modelBuilder.Entity<Hours>(entity =>
@@ -115,7 +110,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<Production>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Producti__3214EC07322C6B48");
+            entity.HasKey(e => e.Id).HasName("PK__Producti__3214EC07E2B970B4");
 
             entity.Property(e => e.DeadTimesId).HasColumnName("deadTimesId");
             entity.Property(e => e.HourId).HasColumnName("hourId");
@@ -130,33 +125,38 @@ public partial class AppDbContext : DbContext
 
             entity.HasOne(d => d.DeadTimes).WithMany(p => p.Production)
                 .HasForeignKey(d => d.DeadTimesId)
-                .HasConstraintName("FK__Productio__deadT__5165187F");
+                .HasConstraintName("FK__Productio__deadT__6A30C649");
 
             entity.HasOne(d => d.Hour).WithMany(p => p.Production)
                 .HasForeignKey(d => d.HourId)
-                .HasConstraintName("FK__Productio__hourI__4D94879B");
+                .HasConstraintName("FK__Productio__hourI__66603565");
 
             entity.HasOne(d => d.Lines).WithMany(p => p.Production)
                 .HasForeignKey(d => d.LinesId)
-                .HasConstraintName("FK__Productio__lines__4E88ABD4");
+                .HasConstraintName("FK__Productio__lines__6754599E");
 
             entity.HasOne(d => d.Machine).WithMany(p => p.Production)
                 .HasForeignKey(d => d.MachineId)
-                .HasConstraintName("FK__Productio__machi__5070F446");
+                .HasConstraintName("FK__Productio__machi__693CA210");
 
             entity.HasOne(d => d.Process).WithMany(p => p.Production)
                 .HasForeignKey(d => d.ProcessId)
-                .HasConstraintName("FK__Productio__proce__4F7CD00D");
+                .HasConstraintName("FK__Productio__proce__68487DD7");
         });
 
         modelBuilder.Entity<Reason>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Reason__3214EC07FFA3348B");
+            entity.HasKey(e => e.Id).HasName("PK__Reason__3214EC07909D2908");
 
+            entity.Property(e => e.CodeId).HasColumnName("codeId");
             entity.Property(e => e.Name)
                 .HasMaxLength(80)
                 .IsUnicode(false)
                 .HasColumnName("name");
+
+            entity.HasOne(d => d.Code).WithMany(p => p.Reason)
+                .HasForeignKey(d => d.CodeId)
+                .HasConstraintName("FK__Reason__codeId__59063A47");
         });
 
         OnModelCreatingPartial(modelBuilder);

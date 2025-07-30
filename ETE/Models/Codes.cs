@@ -9,11 +9,9 @@ public partial class Codes
 {
     public int Id { get; set; }
 
-    public int? ReasonId { get; set; }
-
     public string Name { get; set; }
 
     public virtual ICollection<DeadTimes> DeadTimes { get; set; } = new List<DeadTimes>();
 
-    public virtual Reason Reason { get; set; }
+    public virtual ICollection<Reason> Reason { get; set; } = new List<Reason>();
 }
