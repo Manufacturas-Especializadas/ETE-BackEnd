@@ -140,6 +140,7 @@ namespace ETE.Controllers
                     LinesId = productionDto.LinesId,
                     ProcessId = productionDto.ProcessId,
                     MachineId = productionDto.MachineId,
+                    Scrap = productionDto.Scrap,
                 };
 
                 if (createdDeadTimes.Any())

@@ -12,6 +12,9 @@ namespace ETE.Dtos
         public int PieceQuantity { get; set; }
 
         [Required]
+        public int Scrap { get; set; }
+
+        [Required]
         public int HourId { get; set; }
 
         [Required]

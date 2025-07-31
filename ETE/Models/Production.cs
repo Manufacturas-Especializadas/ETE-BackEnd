@@ -23,6 +23,8 @@ public partial class Production
 
     public int? DeadTimesId { get; set; }
 
+    public int? Scrap { get; set; }
+
     public virtual DeadTimes DeadTimes { get; set; }
 
     public virtual Hours Hour { get; set; }

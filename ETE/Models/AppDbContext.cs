@@ -124,6 +124,7 @@ public partial class AppDbContext : DbContext
                 .HasColumnName("partNumber");
             entity.Property(e => e.PieceQuantity).HasColumnName("pieceQuantity");
             entity.Property(e => e.ProcessId).HasColumnName("processId");
+            entity.Property(e => e.Scrap).HasColumnName("scrap");
 
             entity.HasOne(d => d.DeadTimes).WithMany(p => p.Production)
                 .HasForeignKey(d => d.DeadTimesId)
