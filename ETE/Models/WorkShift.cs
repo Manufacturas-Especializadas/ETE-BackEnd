@@ -5,13 +5,9 @@ using System.Collections.Generic;
 
 namespace ETE.Models;
 
-public partial class Machine
+public partial class WorkShift
 {
     public int Id { get; set; }
 
-    public int? ProcessId { get; set; }
-
     public string Name { get; set; }
-
-    public virtual Process Process { get; set; }
 }

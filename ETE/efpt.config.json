@@ -46,6 +46,10 @@
       {
          "Name": "[dbo].[Reason]",
          "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[WorkShift]",
+         "ObjectType": 0
       }
    ],
    "UiHint": null,

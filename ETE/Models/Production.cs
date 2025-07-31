@@ -29,7 +29,5 @@ public partial class Production
 
     public virtual Lines Lines { get; set; }
 
-    public virtual Machine Machine { get; set; }
-
     public virtual Process Process { get; set; }
 }

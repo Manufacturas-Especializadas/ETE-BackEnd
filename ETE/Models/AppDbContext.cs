@@ -29,6 +29,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<Reason> Reason { get; set; }
 
+    public virtual DbSet<WorkShift> WorkShift { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Codes>(entity =>
@@ -70,7 +72,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<Lines>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Lines__3214EC07AB067F1D");
+            entity.HasKey(e => e.Id).HasName("PK__Lines__3214EC0727D090B8");
 
             entity.Property(e => e.Name)
                 .HasMaxLength(50)
@@ -80,7 +82,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<Machine>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Machine__3214EC07BE30DECD");
+            entity.HasKey(e => e.Id).HasName("PK__Machine__3214EC07F800F9FD");
 
             entity.Property(e => e.Name)
                 .HasMaxLength(40)
@@ -90,12 +92,12 @@ public partial class AppDbContext : DbContext
 
             entity.HasOne(d => d.Process).WithMany(p => p.Machine)
                 .HasForeignKey(d => d.ProcessId)
-                .HasConstraintName("FK__Machine__process__403A8C7D");
+                .HasConstraintName("FK__Machine__process__71D1E811");
         });
 
         modelBuilder.Entity<Process>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Process__3214EC07D2509706");
+            entity.HasKey(e => e.Id).HasName("PK__Process__3214EC0733128B75");
 
             entity.Property(e => e.LineId).HasColumnName("lineId");
             entity.Property(e => e.Name)
@@ -105,12 +107,12 @@ public partial class AppDbContext : DbContext
 
             entity.HasOne(d => d.Line).WithMany(p => p.Process)
                 .HasForeignKey(d => d.LineId)
-                .HasConstraintName("FK__Process__lineId__3D5E1FD2");
+                .HasConstraintName("FK__Process__lineId__6EF57B66");
         });
 
         modelBuilder.Entity<Production>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Producti__3214EC07E2B970B4");
+            entity.HasKey(e => e.Id).HasName("PK__Producti__3214EC078930C6C6");
 
             entity.Property(e => e.DeadTimesId).HasColumnName("deadTimesId");
             entity.Property(e => e.HourId).HasColumnName("hourId");
@@ -125,23 +127,19 @@ public partial class AppDbContext : DbContext
 
             entity.HasOne(d => d.DeadTimes).WithMany(p => p.Production)
                 .HasForeignKey(d => d.DeadTimesId)
-                .HasConstraintName("FK__Productio__deadT__6A30C649");
+                .HasConstraintName("FK__Productio__deadT__778AC167");
 
             entity.HasOne(d => d.Hour).WithMany(p => p.Production)
                 .HasForeignKey(d => d.HourId)
-                .HasConstraintName("FK__Productio__hourI__66603565");
+                .HasConstraintName("FK__Productio__hourI__74AE54BC");
 
             entity.HasOne(d => d.Lines).WithMany(p => p.Production)
                 .HasForeignKey(d => d.LinesId)
-                .HasConstraintName("FK__Productio__lines__6754599E");
-
-            entity.HasOne(d => d.Machine).WithMany(p => p.Production)
-                .HasForeignKey(d => d.MachineId)
-                .HasConstraintName("FK__Productio__machi__693CA210");
+                .HasConstraintName("FK__Productio__lines__75A278F5");
 
             entity.HasOne(d => d.Process).WithMany(p => p.Production)
                 .HasForeignKey(d => d.ProcessId)
-                .HasConstraintName("FK__Productio__proce__68487DD7");
+                .HasConstraintName("FK__Productio__proce__76969D2E");
         });
 
         modelBuilder.Entity<Reason>(entity =>
@@ -157,6 +155,16 @@ public partial class AppDbContext : DbContext
             entity.HasOne(d => d.Code).WithMany(p => p.Reason)
                 .HasForeignKey(d => d.CodeId)
                 .HasConstraintName("FK__Reason__codeId__59063A47");
+        });
+
+        modelBuilder.Entity<WorkShift>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__WorkShif__3214EC0727426533");
+
+            entity.Property(e => e.Name)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("name");
         });
 
         OnModelCreatingPartial(modelBuilder);

@@ -45,6 +45,15 @@ namespace ETE.Controllers
         }
 
         [HttpGet]
+        [Route("GetWorkShifts")]
+        public async Task<IActionResult> GetWorkShifts()
+        {
+            var workShifts = await _context.WorkShift.AsNoTracking().ToListAsync();
+
+            return Ok(workShifts);
+        }
+
+        [HttpGet]
         [Route("GetProcessesByLine/{lineId}")]
         public async Task<IActionResult> GetProcessesBy(int lineId)
         {
