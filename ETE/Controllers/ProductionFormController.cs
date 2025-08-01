@@ -3,6 +3,7 @@ using ETE.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 
 namespace ETE.Controllers
 {
@@ -88,6 +89,95 @@ namespace ETE.Controllers
 
             return Ok(reasons);
         }
+
+        [HttpGet]
+        [Route("GetQualityData")]
+        public async Task<IActionResult> GetQualityData(
+            [FromQuery] int? lineId,
+            [FromQuery] int? shiftId,
+            [FromQuery] DateTime? startDate = null,
+            [FromQuery] DateTime? endDate = null)
+        {
+            try
+            {
+                startDate ??= DateTime.Now.AddDays(-30);
+                endDate ??= DateTime.Now;
+
+                endDate = endDate.Value.Date.AddDays(1).AddTicks(-1);
+
+                var hourIdsQuery = _context.Hours
+                    .Where(h => h.Date >= startDate && h.Date <= endDate)
+                    .AsQueryable();
+
+                if (shiftId.HasValue)
+                {
+                    hourIdsQuery = hourIdsQuery
+                        .Where(h => _context.WorkShiftHours
+                            .Any(wsh => wsh.HourId == h.Id && wsh.WorkShiftId == shiftId.Value));
+                }
+
+                var hourIds = await hourIdsQuery
+                    .Select(h => h.Id)
+                    .ToListAsync();
+
+                Console.WriteLine($"IDs de horas encontrados: {hourIds.Count}");
+
+                var productionQuery = _context.Production
+                    .Where(p => hourIds.Contains(p.HourId))
+                    .AsQueryable();
+
+                if (lineId.HasValue)
+                {
+                    productionQuery = productionQuery.Where(p => p.LinesId == lineId.Value);
+                }
+
+                var totals = await productionQuery
+                    .GroupBy(p => 1)
+                    .Select(g => new
+                    {
+                        TotalPieces = g.Sum(p => p.PieceQuantity ?? 0),
+                        TotalScrap = g.Sum(p => p.Scrap ?? 0)
+                    })
+                    .FirstOrDefaultAsync();
+
+                if (totals == null || (totals.TotalPieces == 0 && totals.TotalScrap == 0))
+                {
+                    productionQuery = _context.Production.AsQueryable();
+
+                    if (lineId.HasValue)
+                    {
+                        productionQuery = productionQuery.Where(p => p.LinesId == lineId.Value);
+                    }
+
+                    totals = await productionQuery
+                        .GroupBy(p => 1)
+                        .Select(g => new
+                        {
+                            TotalPieces = g.Sum(p => p.PieceQuantity ?? 0),
+                            TotalScrap = g.Sum(p => p.Scrap ?? 0)
+                        })
+                        .FirstOrDefaultAsync();
+                }
+
+                var result = new
+                {
+                    GoodPieces = totals?.TotalPieces - totals?.TotalScrap ?? 0,
+                    Scrap = totals?.TotalScrap ?? 0,
+                    TotalPieces = totals?.TotalPieces ?? 0,
+                    QualityPercentage = totals == null || totals.TotalPieces == 0 ? 0 :
+                        Math.Round(((totals.TotalPieces - totals.TotalScrap) * 100.0) / totals.TotalPieces, 2)
+                };
+
+                Console.WriteLine($"Resultados: {JsonSerializer.Serialize(result)}");
+
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.ToString()}");
+                return StatusCode(500, $"Error interno del servidor: {ex.Message}");
+            }
+        }        
 
         [HttpPost]
         [Route("RegisterProduction")]
