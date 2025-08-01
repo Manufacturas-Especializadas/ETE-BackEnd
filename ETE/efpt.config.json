@@ -36,6 +36,10 @@
          "ObjectType": 0
       },
       {
+         "Name": "[dbo].[MasterEngineering]",
+         "ObjectType": 0
+      },
+      {
          "Name": "[dbo].[Process]",
          "ObjectType": 0
       },
@@ -49,6 +53,10 @@
       },
       {
          "Name": "[dbo].[WorkShift]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[WorkShiftHours]",
          "ObjectType": 0
       }
    ],

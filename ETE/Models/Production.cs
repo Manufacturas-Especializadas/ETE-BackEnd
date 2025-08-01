@@ -13,7 +13,7 @@ public partial class Production
 
     public int? PieceQuantity { get; set; }
 
-    public int? HourId { get; set; }
+    public int HourId { get; set; }
 
     public int? LinesId { get; set; }
 

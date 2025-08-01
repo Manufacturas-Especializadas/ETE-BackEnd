@@ -23,6 +23,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<Machine> Machine { get; set; }
 
+    public virtual DbSet<MasterEngineering> MasterEngineering { get; set; }
+
     public virtual DbSet<Process> Process { get; set; }
 
     public virtual DbSet<Production> Production { get; set; }
@@ -30,6 +32,8 @@ public partial class AppDbContext : DbContext
     public virtual DbSet<Reason> Reason { get; set; }
 
     public virtual DbSet<WorkShift> WorkShift { get; set; }
+
+    public virtual DbSet<WorkShiftHours> WorkShiftHours { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -62,8 +66,11 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<Hours>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Hours__3214EC078CDB5ADA");
+            entity.HasKey(e => e.Id).HasName("PK__Hours__3214EC073E7532DC");
 
+            entity.Property(e => e.Date)
+                .HasDefaultValueSql("(getdate())")
+                .HasColumnType("datetime");
             entity.Property(e => e.Time)
                 .HasMaxLength(50)
                 .IsUnicode(false)
@@ -95,6 +102,87 @@ public partial class AppDbContext : DbContext
                 .HasConstraintName("FK__Machine__process__71D1E811");
         });
 
+        modelBuilder.Entity<MasterEngineering>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__MasterEn__3214EC074289B74F");
+
+            entity.Property(e => e.ChildPartNumber)
+                .HasMaxLength(70)
+                .IsUnicode(false)
+                .HasColumnName("childPartNumber");
+            entity.Property(e => e.Ciclo)
+                .HasColumnType("decimal(16, 10)")
+                .HasColumnName("ciclo");
+            entity.Property(e => e.Client)
+                .HasMaxLength(60)
+                .IsUnicode(false)
+                .HasColumnName("client");
+            entity.Property(e => e.Concatenated)
+                .HasMaxLength(70)
+                .IsUnicode(false)
+                .HasColumnName("concatenated");
+            entity.Property(e => e.Descripcion)
+                .HasMaxLength(50)
+                .IsUnicode(false)
+                .HasColumnName("descripcion");
+            entity.Property(e => e.Development)
+                .HasColumnType("decimal(12, 4)")
+                .HasColumnName("development");
+            entity.Property(e => e.ExternalDiameter)
+                .HasMaxLength(80)
+                .IsUnicode(false)
+                .HasColumnName("externalDiameter");
+            entity.Property(e => e.Family)
+                .HasMaxLength(40)
+                .IsUnicode(false)
+                .HasColumnName("family");
+            entity.Property(e => e.Line).HasColumnName("line");
+            entity.Property(e => e.Oper).HasColumnName("oper");
+            entity.Property(e => e.OperSetup).HasColumnName("operSetup");
+            entity.Property(e => e.Operation)
+                .HasMaxLength(100)
+                .IsUnicode(false)
+                .HasColumnName("operation");
+            entity.Property(e => e.ParentPartNumber)
+                .HasMaxLength(70)
+                .IsUnicode(false)
+                .HasColumnName("parentPartNumber");
+            entity.Property(e => e.Process)
+                .HasMaxLength(80)
+                .IsUnicode(false)
+                .HasColumnName("process");
+            entity.Property(e => e.ProcessComments)
+                .HasMaxLength(250)
+                .IsUnicode(false)
+                .HasColumnName("processComments");
+            entity.Property(e => e.PurchasePart)
+                .HasMaxLength(500)
+                .IsUnicode(false)
+                .HasColumnName("purchasePart");
+            entity.Property(e => e.PzHr).HasColumnName("pzHr");
+            entity.Property(e => e.QuantityXunit)
+                .HasColumnType("decimal(12, 4)")
+                .HasColumnName("quantityXUnit");
+            entity.Property(e => e.Sequence).HasColumnName("sequence");
+            entity.Property(e => e.TSetupMayor)
+                .HasColumnType("decimal(12, 4)")
+                .HasColumnName("tSetupMayor");
+            entity.Property(e => e.TSetupMinor)
+                .HasColumnType("decimal(12, 4)")
+                .HasColumnName("tSetupMinor");
+            entity.Property(e => e.Type)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasColumnName("type");
+            entity.Property(e => e.Verification)
+                .HasMaxLength(60)
+                .IsUnicode(false)
+                .HasColumnName("verification");
+            entity.Property(e => e.WallThickness)
+                .HasColumnType("decimal(12, 4)")
+                .HasColumnName("wallThickness");
+        });
+
         modelBuilder.Entity<Process>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK__Process__3214EC0733128B75");
@@ -112,7 +200,7 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<Production>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__Producti__3214EC078930C6C6");
+            entity.HasKey(e => e.Id).HasName("PK__Producti__3214EC07759FB59E");
 
             entity.Property(e => e.DeadTimesId).HasColumnName("deadTimesId");
             entity.Property(e => e.HourId).HasColumnName("hourId");
@@ -128,19 +216,23 @@ public partial class AppDbContext : DbContext
 
             entity.HasOne(d => d.DeadTimes).WithMany(p => p.Production)
                 .HasForeignKey(d => d.DeadTimesId)
-                .HasConstraintName("FK__Productio__deadT__778AC167");
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK__Productio__deadT__160F4887");
 
             entity.HasOne(d => d.Hour).WithMany(p => p.Production)
                 .HasForeignKey(d => d.HourId)
-                .HasConstraintName("FK__Productio__hourI__74AE54BC");
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK__Productio__hourI__1332DBDC");
 
             entity.HasOne(d => d.Lines).WithMany(p => p.Production)
                 .HasForeignKey(d => d.LinesId)
-                .HasConstraintName("FK__Productio__lines__75A278F5");
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK__Productio__lines__14270015");
 
             entity.HasOne(d => d.Process).WithMany(p => p.Production)
                 .HasForeignKey(d => d.ProcessId)
-                .HasConstraintName("FK__Productio__proce__76969D2E");
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK__Productio__proce__151B244E");
         });
 
         modelBuilder.Entity<Reason>(entity =>
@@ -160,12 +252,27 @@ public partial class AppDbContext : DbContext
 
         modelBuilder.Entity<WorkShift>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__WorkShif__3214EC0727426533");
+            entity.HasKey(e => e.Id).HasName("PK__WorkShif__3214EC0795F91C10");
 
             entity.Property(e => e.Name)
                 .HasMaxLength(30)
                 .IsUnicode(false)
                 .HasColumnName("name");
+        });
+
+        modelBuilder.Entity<WorkShiftHours>(entity =>
+        {
+            entity.HasKey(e => new { e.WorkShiftId, e.HourId }).HasName("PK__WorkShif__A8B003DC04E6EB75");
+
+            entity.HasOne(d => d.Hour).WithMany(p => p.WorkShiftHours)
+                .HasForeignKey(d => d.HourId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__WorkShift__HourI__19DFD96B");
+
+            entity.HasOne(d => d.WorkShift).WithMany(p => p.WorkShiftHours)
+                .HasForeignKey(d => d.WorkShiftId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK__WorkShift__WorkS__18EBB532");
         });
 
         OnModelCreatingPartial(modelBuilder);
