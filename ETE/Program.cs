@@ -27,39 +27,39 @@ builder.Services.AddCors(options =>
     });
 });
 
-var ipAllowedStr = builder.Configuration.GetValue<string>("IpPermitida");
-if(!IPAddress.TryParse(ipAllowedStr, out var iPAddress))
-{
-    throw new Exception("La ipPermitida en appsettings.json no es valida");
-}
+//var ipAllowedStr = builder.Configuration.GetValue<string>("IpPermitida");
+//if(!IPAddress.TryParse(ipAllowedStr, out var iPAddress))
+//{
+//    throw new Exception("La ipPermitida en appsettings.json no es valida");
+//}
 
 var app = builder.Build();
 
-app.Use(async (context, next) =>
-{
-    var remoteIp = context.Connection.RemoteIpAddress;
+//app.Use(async (context, next) =>
+//{
+//    var remoteIp = context.Connection.RemoteIpAddress;
 
-    if(context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedHeader))
-    {
-        var firstIp = forwardedHeader.ToString().Split(',').FirstOrDefault();
-        if(IPAddress.TryParse(firstIp, out var parsedIp))
-        {
-            remoteIp = parsedIp;
-        }
-    }
+//    if(context.Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedHeader))
+//    {
+//        var firstIp = forwardedHeader.ToString().Split(',').FirstOrDefault();
+//        if(IPAddress.TryParse(firstIp, out var parsedIp))
+//        {
+//            remoteIp = parsedIp;
+//        }
+//    }
 
-    Debug.WriteLine($"Ip conectada: {remoteIp}");
+//    Debug.WriteLine($"Ip conectada: {remoteIp}");
 
-    if (!remoteIp.Equals(iPAddress))
-    {
-        context.Response.StatusCode = 403;
-        await context.Response.WriteAsync("Acceso denegado: IP no autorizada");
+//    if (!remoteIp.Equals(iPAddress))
+//    {
+//        context.Response.StatusCode = 403;
+//        await context.Response.WriteAsync("Acceso denegado: IP no autorizada");
 
-        return;
-    }
+//        return;
+//    }
 
-    await next();
-});
+//    await next();
+//});
 
 app.UseSwagger();
 app.UseSwaggerUI();
