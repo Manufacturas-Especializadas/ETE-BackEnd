@@ -56,6 +56,14 @@ namespace ETE.Controllers
         }
 
         [HttpGet]
+        [Route("GetMachines")]
+        public async Task<IActionResult> GetMachines()
+        {
+            var machines = await _context.Machine.AsNoTracking().ToListAsync();
+            return Ok(machines);
+        }
+
+        [HttpGet]
         [Route("GetProcessesByLine/{lineId}")]
         public async Task<IActionResult> GetProcessesBy(int lineId)
         {
