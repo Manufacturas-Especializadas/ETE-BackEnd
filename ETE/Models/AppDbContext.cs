@@ -206,6 +206,7 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.HourId).HasColumnName("hourId");
             entity.Property(e => e.LinesId).HasColumnName("linesId");
             entity.Property(e => e.MachineId).HasColumnName("machineId");
+            entity.Property(e => e.MasterEnginnerId).HasColumnName("masterEnginnerId");
             entity.Property(e => e.PartNumber)
                 .HasMaxLength(80)
                 .IsUnicode(false)
@@ -228,6 +229,10 @@ public partial class AppDbContext : DbContext
                 .HasForeignKey(d => d.LinesId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("FK__Productio__lines__14270015");
+
+            entity.HasOne(d => d.MasterEnginner).WithMany(p => p.Production)
+                .HasForeignKey(d => d.MasterEnginnerId)
+                .HasConstraintName("FK__Productio__maste__1BC821DD");
 
             entity.HasOne(d => d.Process).WithMany(p => p.Production)
                 .HasForeignKey(d => d.ProcessId)

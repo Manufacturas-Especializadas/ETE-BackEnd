@@ -25,11 +25,15 @@ public partial class Production
 
     public int? Scrap { get; set; }
 
+    public int? MasterEnginnerId { get; set; }
+
     public virtual DeadTimes DeadTimes { get; set; }
 
     public virtual Hours Hour { get; set; }
 
     public virtual Lines Lines { get; set; }
+
+    public virtual MasterEngineering MasterEnginner { get; set; }
 
     public virtual Process Process { get; set; }
 }

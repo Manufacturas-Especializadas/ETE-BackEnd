@@ -3,6 +3,7 @@ using ETE.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
 using System.Text.Json;
 
 namespace ETE.Controllers
@@ -177,7 +178,249 @@ namespace ETE.Controllers
                 Console.WriteLine($"Error: {ex.ToString()}");
                 return StatusCode(500, $"Error interno del servidor: {ex.Message}");
             }
-        }        
+        }
+
+        [HttpGet]
+        [Route("GetEfficiencyData")]
+        public async Task<IActionResult> GetEfficiencyData(
+            [FromQuery] int? lineId,
+            [FromQuery] int? shiftId,
+            [FromQuery] DateTime? startDate = null,
+            [FromQuery] DateTime? endDate = null)
+        {
+            try
+            {
+                endDate ??= DateTime.Now;
+                endDate = endDate.Value.Date.AddDays(1).AddTicks(-1);
+
+                var hourCount = await _context.Hours
+                    .Where(h => h.Date >= startDate && h.Date <= endDate)
+                    .CountAsync();
+
+                Console.WriteLine($"Total de horas en rango: {hourCount}");
+
+                var query = from p in _context.Production
+                            join h in _context.Hours on p.HourId equals h.Id
+                            join me in _context.MasterEngineering on
+                                new { PartNumber = p.PartNumber, LineId = p.LinesId }
+                                equals
+                                new { PartNumber = me.ChildPartNumber, LineId = me.Line }
+                            into meJoin
+                            from me in meJoin.DefaultIfEmpty()
+                            where h.Date >= startDate && h.Date <= endDate
+                            select new
+                            {
+                                p.PartNumber,
+                                p.LinesId,
+                                p.PieceQuantity,
+                                Expected = me != null ? me.PzHr : null
+                            };
+
+                if (lineId.HasValue)
+                {
+                    query = query.Where(x => x.LinesId == lineId.Value);
+                }
+
+                //if (shiftId.HasValue)
+                //{
+                //    query = query.Where(x => _context.WorkShiftHours
+                //        .Any(wsh => wsh.HourId == x.HourId && wsh.WorkShiftId == shiftId.Value));
+                //}
+
+                var results = await query.ToListAsync();
+
+                Console.WriteLine($"Registros encontrados: {results.Count}");
+                Console.WriteLine($"Ejemplo de primeros registros: {JsonSerializer.Serialize(results.Take(3))}");
+
+                var validResults = results
+                    .Where(x => x.Expected.HasValue && x.Expected > 0)
+                    .ToList();
+
+                var totalProduced = validResults.Sum(x => x.PieceQuantity ?? 0);
+                var totalExpected = validResults.Sum(x => x.Expected ?? 0);
+                var efficiency = totalExpected > 0 ? Math.Round((totalProduced * 100.0) / totalExpected, 2) : 0;
+
+                var missingData = results
+                    .Where(x => !x.Expected.HasValue || x.Expected <= 0)
+                    .GroupBy(x => new { x.PartNumber, x.LinesId })
+                    .Select(g => new
+                    {
+                        g.Key.PartNumber,
+                        g.Key.LinesId,
+                        Count = g.Count()
+                    })
+                    .ToList();
+
+                Console.WriteLine($"Registros sin target: {missingData.Count}");
+                if (missingData.Any())
+                {
+                    Console.WriteLine($"Top partNumbers sin target: {JsonSerializer.Serialize(missingData.Take(5))}");
+                }
+
+                return Ok(new
+                {
+                    TotalProduced = totalProduced,
+                    TotalExpected = totalExpected,
+                    Efficiency = efficiency,
+                    HourCount = hourCount,
+                    Details = validResults.Take(10),
+                    MissingDataCount = missingData.Count,
+                    DebugInfo = new
+                    {
+                        TotalRecords = results.Count,
+                        RecordsWithTarget = validResults.Count,
+                        DateRange = $"{startDate} - {endDate}"
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error completo: {ex.ToString()}");
+                return StatusCode(500, new
+                {
+                    Error = ex.Message,
+                    StackTrace = ex.StackTrace,
+                    InnerException = ex.InnerException?.Message
+                });
+            }
+        }
+
+        [HttpGet]
+        [Route("GetAvailabilityData")]
+        public async Task<IActionResult> GetAvailabilityData(
+            [FromQuery] int? lineId,
+            [FromQuery] int? shiftId,
+            [FromQuery] DateTime? startDate = null,
+            [FromQuery] DateTime? endDate = null)
+        {
+            try
+            {
+                int totalTime = 24 * 60;
+
+                var deadTimesQuery = _context.DeadTimes
+                .Join(_context.Production,
+                    dt => dt.Id,
+                    p => p.DeadTimesId,
+                    (dt, p) => new { dt.Minutes, p.LinesId, p.Hour })
+                .Join(_context.Hours,
+                    x => x.Hour.Id,
+                    h => h.Id,
+                    (x, h) => new { x.Minutes, x.LinesId, Hour = h });
+
+
+                int totalDeadTime = await deadTimesQuery
+                    .Select(x => x.Minutes ?? 0)
+                    .SumAsync();
+
+                int availableTime = totalTime - totalDeadTime;
+                double availabilityPercentage = Math.Round((double)availableTime / totalTime * 100, 2);
+
+
+                return Ok(new
+                {
+                    totalTime = totalTime,
+                    deadTime = totalDeadTime,
+                    availableTime = availableTime,
+                    percentage = availabilityPercentage
+                });
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, $"Error al calcular la disponibilidad: {ex.Message}");
+            }
+        }
+
+        [HttpGet]
+        [Route("GetDeadTimeByReasonLast6Days")]
+        public async Task<IActionResult> GetDeadTimeByReasonLast6Days([FromQuery] int? lineId = null)
+        {
+            try
+            {
+                var endDate = DateTime.Today;
+                var startDate = endDate.AddDays(-6);
+
+                var result = await _context.Production
+                    .Where(p => p.Hour.Date >= startDate &&
+                               p.Hour.Date <= endDate &&
+                               p.DeadTimesId != null &&
+                               (lineId == null || p.LinesId == lineId))
+                    .GroupBy(p => p.DeadTimes.Reason.Name)
+                    .Select(g => new {
+                        Reason = g.Key ?? "Sin razón",
+                        TotalMinutes = g.Sum(p => p.DeadTimes.Minutes ?? 0)
+                    })
+                    .OrderBy(x => x.TotalMinutes)
+                    .ToListAsync();
+               
+                if (!result.Any())
+                {
+                    result = await _context.DeadTimes
+                        .GroupBy(dt => dt.Reason.Name)
+                        .Select(g => new {
+                            Reason = g.Key ?? "Sin razón",
+                            TotalMinutes = g.Sum(dt => dt.Minutes ?? 0)
+                        })
+                        .OrderBy(x => x.TotalMinutes)
+                        .ToListAsync();
+                }
+
+                var totalMinutes = result.Sum(x => x.TotalMinutes);
+                var averageMinutes = totalMinutes / 6.0;
+
+                return Ok(new
+                {
+                    labels = result.Select(x => x.Reason).ToArray(),
+                    data = result.Select(x => x.TotalMinutes).ToArray(),
+                    totalMinutes,
+                    averageMinutes
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
+
+        [HttpGet]
+        [Route("GetKeyMetrics")]
+        public async Task<IActionResult> GetKeyMetrics(
+            [FromQuery] int? lineId = null, 
+            [FromQuery] int? shiftId = null,
+            [FromQuery] DateTime? startDate = null, 
+            [FromQuery] DateTime? endDate = null)
+        {
+            try
+            {
+                var endDateValue = endDate ?? DateTime.Now;
+                var startDateValue = startDate ?? endDateValue.AddDays(-7);
+
+                var totalDeadTime = await _context.DeadTimes
+                    .SumAsync(dt => dt.Minutes ?? 0);
+
+                var avgDeadTime = await _context.DeadTimes
+                    .AverageAsync(dt => dt.Minutes ?? 0);
+
+                var totalScrap = await _context.Production
+                     .Where(p => p.Scrap != null)
+                     .SumAsync(p => p.Scrap ?? 0);
+
+                var avgScrap = await _context.Production
+                    .Where(p => p.Scrap != null)
+                    .AverageAsync(p => p.Scrap ?? 0);
+
+                return Ok(new
+                {
+                    DeadTime = totalDeadTime,
+                    DeadTimeVsAvg = totalDeadTime - avgDeadTime,
+                    Scrap = totalScrap,
+                    ScrapVsAvg = totalScrap - avgScrap,
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, $"Internal server error: {ex.Message}");
+            }
+        }
 
         [HttpPost]
         [Route("RegisterProduction")]

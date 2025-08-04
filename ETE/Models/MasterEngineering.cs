@@ -56,4 +56,6 @@ public partial class MasterEngineering
     public int? PzHr { get; set; }
 
     public string Verification { get; set; }
+
+    public virtual ICollection<Production> Production { get; set; } = new List<Production>();
 }
