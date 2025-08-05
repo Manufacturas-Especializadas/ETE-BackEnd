@@ -1,4 +1,5 @@
-﻿using ETE.Dtos;
+﻿using ClosedXML.Excel;
+using ETE.Dtos;
 using ETE.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -479,6 +480,57 @@ namespace ETE.Controllers
                 .ToListAsync();
 
             return Ok(list);
+        }
+
+        [HttpPost]
+        [Route("DownloadProduction")]
+        public async Task<IActionResult> ExportToExcel()
+        {
+            var production = await _context.Production.Select(p => new
+            {
+                p.Id,
+                p.RegistrationDate,
+                Line = p.Lines.Name,
+                Machine = p.Process.Machine.FirstOrDefault()!.Name,
+                Hour = p.Hour.Time,
+                p.PieceQuantity,
+                p.DeadTimes.Minutes,
+                p.Scrap
+            })
+            .AsNoTracking()
+            .ToListAsync();
+
+            using (var workBook = new XLWorkbook())
+            {
+                var workSheet = workBook.Worksheets.Add("Production");
+
+                workSheet.Cell(1, 1).Value = "Fecha";
+                workSheet.Cell(1, 2).Value = "Línea";
+                workSheet.Cell(1, 3).Value = "Máquina";
+                workSheet.Cell(1, 4).Value = "Hora";
+                workSheet.Cell(1, 5).Value = "Cantidad de Piezas";
+                workSheet.Cell(1, 6).Value = "Tiempo Muerto (Minutos)";
+                workSheet.Cell(1, 7).Value = "Scrap";
+
+                for(int i = 0; i <  production.Count; i++)
+                {
+                    workSheet.Cell(i + 2, 1).Value = production[i].RegistrationDate;
+                    workSheet.Cell(i + 2, 2).Value = production[i].Line;
+                    workSheet.Cell(i + 2, 3).Value = production[i].Machine;
+                    workSheet.Cell(i + 2, 4).Value = production[i].Hour;
+                    workSheet.Cell(i + 2, 5).Value = production[i].PieceQuantity;
+                    workSheet.Cell(i + 2, 6).Value = production[i].Minutes;
+                    workSheet.Cell(i + 2, 7).Value = production[i].Scrap;
+                }
+
+                var stream = new MemoryStream();
+                workBook.SaveAs(stream);
+                stream.Position = 0;
+
+                var fileName = $"DatosExportados_{DateTime.Now:ddMMyyyy}.xlsx";
+
+                return File(stream, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+            }
         }
 
         [HttpPost]
