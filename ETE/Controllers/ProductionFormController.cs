@@ -104,6 +104,7 @@ namespace ETE.Controllers
         public async Task<IActionResult> GetQualityData(
             [FromQuery] int? lineId,
             [FromQuery] int? shiftId,
+            [FromQuery] int? machineId,
             [FromQuery] DateTime? startDate = null,
             [FromQuery] DateTime? endDate = null)
         {
@@ -116,14 +117,15 @@ namespace ETE.Controllers
 
                 var hourIdsQuery = _context.Hours
                     .Where(h => h.Date >= startDate && h.Date <= endDate)
+                    .AsNoTracking()
                     .AsQueryable();
 
-                if (shiftId.HasValue)
-                {
-                    hourIdsQuery = hourIdsQuery
-                        .Where(h => _context.WorkShiftHours
-                            .Any(wsh => wsh.HourId == h.Id && wsh.WorkShiftId == shiftId.Value));
-                }
+                //if (shiftId.HasValue)
+                //{
+                //    hourIdsQuery = hourIdsQuery
+                //        .Where(h => _context.WorkShiftHours
+                //            .Any(wsh => wsh.HourId == h.Id && wsh.WorkShiftId == shiftId.Value));
+                //}
 
                 var hourIds = await hourIdsQuery
                     .Select(h => h.Id)
@@ -140,6 +142,11 @@ namespace ETE.Controllers
                     productionQuery = productionQuery.Where(p => p.LinesId == lineId.Value);
                 }
 
+                if (machineId.HasValue)
+                {
+                    productionQuery = productionQuery.Where(p => p.MachineId == machineId.Value);
+                }
+
                 var totals = await productionQuery
                     .GroupBy(p => 1)
                     .Select(g => new
@@ -150,22 +157,19 @@ namespace ETE.Controllers
                     .FirstOrDefaultAsync();
 
                 if (totals == null || (totals.TotalPieces == 0 && totals.TotalScrap == 0))
-                {
-                    productionQuery = _context.Production.AsQueryable();
-
-                    if (lineId.HasValue)
+                {                    
+                    if (!lineId.HasValue && !machineId.HasValue && !shiftId.HasValue)
                     {
-                        productionQuery = productionQuery.Where(p => p.LinesId == lineId.Value);
+                        productionQuery = _context.Production.AsQueryable();
+                        totals = await productionQuery
+                            .GroupBy(p => 1)
+                            .Select(g => new
+                            {
+                                TotalPieces = g.Sum(p => p.PieceQuantity ?? 0),
+                                TotalScrap = g.Sum(p => p.Scrap ?? 0)
+                            })
+                            .FirstOrDefaultAsync();
                     }
-
-                    totals = await productionQuery
-                        .GroupBy(p => 1)
-                        .Select(g => new
-                        {
-                            TotalPieces = g.Sum(p => p.PieceQuantity ?? 0),
-                            TotalScrap = g.Sum(p => p.Scrap ?? 0)
-                        })
-                        .FirstOrDefaultAsync();
                 }
 
                 var result = new
@@ -295,44 +299,69 @@ namespace ETE.Controllers
 
         [HttpGet]
         [Route("GetAvailabilityData")]
-        public async Task<IActionResult> GetAvailabilityData(
+        public async Task<IActionResult> GetAvailabilityDataNoDateFilter(
             [FromQuery] int? lineId,
             [FromQuery] int? shiftId,
-            [FromQuery] DateTime? startDate = null,
-            [FromQuery] DateTime? endDate = null)
+            [FromQuery] int? machineId)
         {
             try
             {
-                int totalTime = 24 * 60;
+                var hourQuery = _context.Hours.AsQueryable();
 
-                var deadTimesQuery = _context.DeadTimes
-                .Join(_context.Production,
-                    dt => dt.Id,
-                    p => p.DeadTimesId,
-                    (dt, p) => new { dt.Minutes, p.LinesId, p.Hour })
-                .Join(_context.Hours,
-                    x => x.Hour.Id,
-                    h => h.Id,
-                    (x, h) => new { x.Minutes, x.LinesId, Hour = h });
+                if (shiftId.HasValue)
+                {
+                    hourQuery = hourQuery
+                        .Where(h => _context.WorkShiftHours
+                            .Any(wsh => wsh.HourId == h.Id && wsh.WorkShiftId == shiftId.Value));
+                }
 
+                var filteredHourIds = await hourQuery.Select(h => h.Id).ToListAsync();
 
-                int totalDeadTime = await deadTimesQuery
-                    .Select(x => x.Minutes ?? 0)
-                    .SumAsync();
+                if (!filteredHourIds.Any())
+                {
+                    return Ok(new
+                    {
+                        totalTime = 0,
+                        deadTime = 0,
+                        availableTime = 0,
+                        percentage = 0
+                    });
+                }
 
-                int availableTime = totalTime - totalDeadTime;
-                double availabilityPercentage = Math.Round((double)availableTime / totalTime * 100, 2);
+                int totalMinutes = filteredHourIds.Count * 60;
 
+                var deadTimesQuery = _context.Production
+                    .Where(p => filteredHourIds.Contains(p.HourId))
+                    .Join(_context.DeadTimes,
+                        p => p.DeadTimesId,
+                        dt => dt.Id,
+                        (p, dt) => new { dt.Minutes, p.LinesId, p.MachineId });
+
+                if (lineId.HasValue)
+                {
+                    deadTimesQuery = deadTimesQuery.Where(x => x.LinesId == lineId.Value);
+                }
+
+                if (machineId.HasValue)
+                {
+                    deadTimesQuery = deadTimesQuery.Where(x => x.MachineId == machineId.Value);
+                }
+
+                int totalDeadTime = await deadTimesQuery.SumAsync(x => x.Minutes ?? 0);
+                int availableTime = totalMinutes - totalDeadTime;
+                double availabilityPercentage = totalMinutes > 0
+                    ? Math.Round((double)availableTime / totalMinutes * 100, 2)
+                    : 0;
 
                 return Ok(new
                 {
-                    totalTime = totalTime,
+                    totalTime = totalMinutes,
                     deadTime = totalDeadTime,
                     availableTime = availableTime,
                     percentage = availabilityPercentage
                 });
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 return StatusCode(500, $"Error al calcular la disponibilidad: {ex.Message}");
             }
