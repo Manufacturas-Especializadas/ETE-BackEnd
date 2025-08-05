@@ -27,6 +27,8 @@ public partial class Production
 
     public int? MasterEnginnerId { get; set; }
 
+    public DateTime? RegistrationDate { get; set; }
+
     public virtual DeadTimes DeadTimes { get; set; }
 
     public virtual Hours Hour { get; set; }
