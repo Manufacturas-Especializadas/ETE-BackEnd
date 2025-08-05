@@ -121,12 +121,14 @@ namespace ETE.Controllers
                     .AsNoTracking()
                     .AsQueryable();
 
-                //if (shiftId.HasValue)
-                //{
-                //    hourIdsQuery = hourIdsQuery
-                //        .Where(h => _context.WorkShiftHours
-                //            .Any(wsh => wsh.HourId == h.Id && wsh.WorkShiftId == shiftId.Value));
-                //}
+                var filterProduction = _context.Production.AsQueryable();
+                var filteredWorkShift = _context.WorkShiftHours.AsQueryable();
+               
+
+                if (shiftId.HasValue)
+                {
+                    filteredWorkShift = filteredWorkShift.Where(wsh => wsh.WorkShiftId == shiftId.Value);
+                }
 
                 var hourIds = await hourIdsQuery
                     .Select(h => h.Id)
@@ -198,6 +200,7 @@ namespace ETE.Controllers
         public async Task<IActionResult> GetEfficiencyData(
             [FromQuery] int? lineId,
             [FromQuery] int? shiftId,
+            [FromQuery] int? machineId,
             [FromQuery] DateTime? startDate = null,
             [FromQuery] DateTime? endDate = null)
         {
@@ -226,6 +229,8 @@ namespace ETE.Controllers
                                 p.PartNumber,
                                 p.LinesId,
                                 p.PieceQuantity,
+                                p.MachineId,
+                                p.HourId,
                                 Expected = me != null ? me.PzHr : null
                             };
 
@@ -234,11 +239,16 @@ namespace ETE.Controllers
                     query = query.Where(x => x.LinesId == lineId.Value);
                 }
 
-                //if (shiftId.HasValue)
-                //{
-                //    query = query.Where(x => _context.WorkShiftHours
-                //        .Any(wsh => wsh.HourId == x.HourId && wsh.WorkShiftId == shiftId.Value));
-                //}
+                if(machineId.HasValue)
+                {
+                    query = query.Where(x => x.MachineId == machineId.Value);
+                }
+
+                if (shiftId.HasValue)
+                {
+                    query = query.Where(x => _context.WorkShiftHours
+                        .Any(wsh => wsh.HourId == x.HourId && wsh.WorkShiftId == shiftId.Value));
+                }
 
                 var results = await query.ToListAsync();
 
@@ -309,12 +319,14 @@ namespace ETE.Controllers
             {
                 var hourQuery = _context.Hours.AsQueryable();
 
+                var productionQuery = _context.Production.AsQueryable();
+
                 if (shiftId.HasValue)
                 {
                     hourQuery = hourQuery
                         .Where(h => _context.WorkShiftHours
                             .Any(wsh => wsh.HourId == h.Id && wsh.WorkShiftId == shiftId.Value));
-                }
+                }               
 
                 var filteredHourIds = await hourQuery.Select(h => h.Id).ToListAsync();
 
