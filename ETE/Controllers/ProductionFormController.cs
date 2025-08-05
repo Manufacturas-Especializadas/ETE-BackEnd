@@ -459,6 +459,28 @@ namespace ETE.Controllers
             }
         }
 
+        [HttpGet]
+        [Route("GetListProduction")]
+        public async Task<IActionResult> GetLisProduction()
+        {
+            var list = await _context.Production
+                .Select(p => new
+                {
+                    p.Id,
+                    p.RegistrationDate,
+                    Line = p.Lines.Name,
+                    Machine = p.Process.Machine.FirstOrDefault()!.Name,
+                    Hour = p.Hour.Time,
+                    p.PieceQuantity,
+                    p.DeadTimes.Minutes,
+                    p.Scrap
+                })
+                .AsNoTracking()
+                .ToListAsync();
+
+            return Ok(list);
+        }
+
         [HttpPost]
         [Route("RegisterProduction")]
         public async Task<IActionResult> RegisterProduction([FromBody] ProductionRegisterDto productionDto)
