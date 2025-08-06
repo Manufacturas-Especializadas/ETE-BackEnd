@@ -206,105 +206,105 @@ namespace ETE.Controllers
         {
             try
             {
-                endDate ??= DateTime.Now;
-                endDate = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                if (!startDate.HasValue) startDate = DateTime.Now.AddDays(-30);
 
-                var hourCount = await _context.Hours
-                    .Where(h => h.Date >= startDate && h.Date <= endDate)
-                    .CountAsync();
+                if (!endDate.HasValue) endDate = DateTime.Now;
 
-                Console.WriteLine($"Total de horas en rango: {hourCount}");
-
-                var query = from p in _context.Production
-                            join h in _context.Hours on p.HourId equals h.Id
-                            join me in _context.MasterEngineering on
-                                new { PartNumber = p.PartNumber, LineId = p.LinesId }
-                                equals
-                                new { PartNumber = me.ChildPartNumber, LineId = me.Line }
-                            into meJoin
-                            from me in meJoin.DefaultIfEmpty()
-                            where h.Date >= startDate && h.Date <= endDate
-                            select new
-                            {
-                                p.PartNumber,
-                                p.LinesId,
-                                p.PieceQuantity,
-                                p.MachineId,
-                                p.HourId,
-                                Expected = me != null ? me.PzHr : null
-                            };
+                var productionQuery = _context.Production
+                            .Where(p => p.RegistrationDate >= startDate && p.RegistrationDate <= endDate);
 
                 if (lineId.HasValue)
                 {
-                    query = query.Where(x => x.LinesId == lineId.Value);
+                    productionQuery = productionQuery.Where(p => p.LinesId == lineId.Value);
                 }
 
-                if(machineId.HasValue)
+                if (machineId.HasValue)
                 {
-                    query = query.Where(x => x.MachineId == machineId.Value);
+                    productionQuery = productionQuery.Where(p => p.MachineId == machineId.Value);
                 }
 
                 if (shiftId.HasValue)
                 {
-                    query = query.Where(x => _context.WorkShiftHours
-                        .Any(wsh => wsh.HourId == x.HourId && wsh.WorkShiftId == shiftId.Value));
+                    productionQuery = productionQuery.Where(p => _context.WorkShiftHours
+                        .Any(wsh => wsh.HourId == p.HourId && wsh.WorkShiftId == shiftId));
                 }
 
-                var results = await query.ToListAsync();
 
-                Console.WriteLine($"Registros encontrados: {results.Count}");
-                Console.WriteLine($"Ejemplo de primeros registros: {JsonSerializer.Serialize(results.Take(3))}");
+                var masterQuery = _context.MasterEngineering
+                        .Where(me => me.PzHr != null && me.PzHr > 0)
+                        .GroupBy(me => new { me.ParentPartNumber, me.Line })
+                        .Select(g => new
+                        {
+                            ParentPartNumber = g.Key.ParentPartNumber,
+                            Line = g.Key.Line,
+                            AvergaePzHr = g.Average(me => me.PzHr)
+                        });
 
-                var validResults = results
-                    .Where(x => x.Expected.HasValue && x.Expected > 0)
-                    .ToList();
+                var efficiencyQuery = productionQuery
+                    .Join(masterQuery,
+                        p => new { PartNumber = p.PartNumber, LineId = p.LinesId },
+                        m => new { PartNumber = m.ParentPartNumber, LineId = m.Line },
+                        (p, m) => new
+                        {
+                            p.Id,
+                            p.PieceQuantity,
+                            m.AvergaePzHr,
+                            p.RegistrationDate,
+                            p.HourId,
+                            p.PartNumber,
+                            p.LinesId,
+                            m.ParentPartNumber,
+                            m.Line
+                        })
+                    .Join(_context.Hours,
+                        x => x.HourId,
+                        h => h.Id,
+                        (x, h) => new
+                        {
+                            x.Id,
+                            x.PieceQuantity,
+                            x.AvergaePzHr,
+                            x.RegistrationDate,
+                            HourDate = h.Date,
+                            x.PartNumber,
+                            x.LinesId,
+                            x.ParentPartNumber,
+                            x.Line
+                    });
 
-                var totalProduced = validResults.Sum(x => x.PieceQuantity ?? 0);
-                var totalExpected = validResults.Sum(x => x.Expected ?? 0);
-                var efficiency = totalExpected > 0 ? Math.Round((totalProduced * 100.0) / totalExpected, 2) : 0;
-
-                var missingData = results
-                    .Where(x => !x.Expected.HasValue || x.Expected <= 0)
-                    .GroupBy(x => new { x.PartNumber, x.LinesId })
-                    .Select(g => new
-                    {
-                        g.Key.PartNumber,
-                        g.Key.LinesId,
-                        Count = g.Count()
-                    })
-                    .ToList();
-
-                Console.WriteLine($"Registros sin target: {missingData.Count}");
-                if (missingData.Any())
-                {
-                    Console.WriteLine($"Top partNumbers sin target: {JsonSerializer.Serialize(missingData.Take(5))}");
-                }
+                var groupedData = await efficiencyQuery
+                        .GroupBy(x => new
+                        {
+                            Date = x.HourDate.HasValue ? x.HourDate.Value.Date : x.RegistrationDate.Value.Date,
+                        })
+                        .Select(g => new
+                        {
+                            Date = g.Key.Date,
+                            TotalProduced = g.Sum(x => x.PieceQuantity) ?? 0,
+                            TotalExpected = g.Sum(x => x.AvergaePzHr) ?? 1,
+                            Efficiency = (g.Sum(x => x.PieceQuantity) ?? 0) / (double)(g.Sum(x => x.AvergaePzHr) ?? 1),
+                            Details = g.Select(x => new
+                            {
+                                x.PartNumber,
+                                x.LinesId,
+                                x.ParentPartNumber,
+                                x.Line,
+                                x.PieceQuantity,
+                                x.AvergaePzHr
+                            }).ToList()
+                        })
+                        .OrderBy(x => x.Date)
+                        .ToListAsync();
 
                 return Ok(new
                 {
-                    TotalProduced = totalProduced,
-                    TotalExpected = totalExpected,
-                    Efficiency = efficiency,
-                    HourCount = hourCount,
-                    Details = validResults.Take(10),
-                    MissingDataCount = missingData.Count,
-                    DebugInfo = new
-                    {
-                        TotalRecords = results.Count,
-                        RecordsWithTarget = validResults.Count,
-                        DateRange = $"{startDate} - {endDate}"
-                    }
+                    Summary = groupedData,
+                    Message = "Nota: Se usa el promedio de pzHr cuando hay multiples valores para la misma combinación partNumber/Linea"
                 });
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
-                Console.WriteLine($"Error completo: {ex.ToString()}");
-                return StatusCode(500, new
-                {
-                    Error = ex.Message,
-                    StackTrace = ex.StackTrace,
-                    InnerException = ex.InnerException?.Message
-                });
+                return StatusCode(500, $"Error interno del servidor: {ex.Message}");
             }
         }
 
