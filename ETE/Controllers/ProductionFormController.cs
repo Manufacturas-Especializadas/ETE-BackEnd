@@ -399,7 +399,7 @@ namespace ETE.Controllers
                         Reason = g.Key ?? "Sin razón",
                         TotalMinutes = g.Sum(p => p.DeadTimes.Minutes ?? 0)
                     })
-                    .OrderBy(x => x.TotalMinutes)
+                    .OrderByDescending(x => x.TotalMinutes)
                     .ToListAsync();
                
                 if (!result.Any())
@@ -410,7 +410,7 @@ namespace ETE.Controllers
                             Reason = g.Key ?? "Sin razón",
                             TotalMinutes = g.Sum(dt => dt.Minutes ?? 0)
                         })
-                        .OrderBy(x => x.TotalMinutes)
+                        .OrderByDescending(x => x.TotalMinutes)
                         .ToListAsync();
                 }
 
