@@ -23,9 +23,9 @@ public partial class Production
 
     public int? DeadTimesId { get; set; }
 
-    public int? Scrap { get; set; }
-
     public int? MasterEnginnerId { get; set; }
+
+    public int? Scrap { get; set; }
 
     public DateTime? RegistrationDate { get; set; }
 
