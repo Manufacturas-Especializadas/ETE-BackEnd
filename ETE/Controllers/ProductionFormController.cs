@@ -101,6 +101,18 @@ namespace ETE.Controllers
         }
 
         [HttpGet]
+        [Route("GetMachineByLine/{lineId}")]
+        public async Task<IActionResult> GetMachineByLine(int lineId)
+        {
+            var machines = await _context.Machine
+                                .Where(m => m.Process.LineId == lineId)
+                                .AsNoTracking()
+                                .ToListAsync();
+
+            return Ok(machines);
+        }
+
+        [HttpGet]
         [Route("GetQualityData")]
         public async Task<IActionResult> GetQualityData(
             [FromQuery] int? lineId,
