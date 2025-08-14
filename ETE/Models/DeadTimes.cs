@@ -15,6 +15,8 @@ public partial class DeadTimes
 
     public int? ReasonId { get; set; }
 
+    public DateTime? RegistrationDate { get; set; }
+
     public virtual Codes Code { get; set; }
 
     public virtual ICollection<Production> Production { get; set; } = new List<Production>();

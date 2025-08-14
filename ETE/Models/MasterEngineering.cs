@@ -19,10 +19,6 @@ public partial class MasterEngineering
 
     public string ExternalDiameter { get; set; }
 
-    public decimal? WallThickness { get; set; }
-
-    public decimal? Development { get; set; }
-
     public string Descripcion { get; set; }
 
     public string Type { get; set; }
@@ -35,21 +31,13 @@ public partial class MasterEngineering
 
     public string PurchasePart { get; set; }
 
-    public decimal? QuantityXunit { get; set; }
-
     public string Operation { get; set; }
 
     public int? Sequence { get; set; }
 
     public string ProcessComments { get; set; }
 
-    public decimal? TSetupMayor { get; set; }
-
-    public decimal? TSetupMinor { get; set; }
-
     public int? OperSetup { get; set; }
-
-    public decimal? Ciclo { get; set; }
 
     public int? Oper { get; set; }
 

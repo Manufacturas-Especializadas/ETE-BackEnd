@@ -1,10 +1,12 @@
 ﻿using ClosedXML.Excel;
+using DocumentFormat.OpenXml.Spreadsheet;
 using ETE.Dtos;
 using ETE.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
+using System.Reflection.PortableExecutable;
 using System.Text.Json;
 
 namespace ETE.Controllers
@@ -394,12 +396,46 @@ namespace ETE.Controllers
 
         [HttpGet]
         [Route("GetDeadTimeByReasonLast6Days")]
-        public async Task<IActionResult> GetDeadTimeByReasonLast6Days([FromQuery] int? lineId = null)
+        public async Task<IActionResult> GetDeadTimeByReasonLast6Days(
+            [FromQuery] int? lineId = null,
+            [FromQuery] int? shiftId = null,
+            [FromQuery] int? machineId = null)
         {
             try
             {
                 var endDate = DateTime.Today;
                 var startDate = endDate.AddDays(-6);
+
+                var deadTimeQuery = _context.DeadTimes.AsQueryable();
+                var productionQuery = _context.Production.AsQueryable();                
+
+                if (lineId.HasValue)
+                {
+                    deadTimeQuery = deadTimeQuery.Where(dt =>
+                        _context.Production.Any(p => p.DeadTimesId == dt.Id && p.LinesId == lineId));
+
+                    productionQuery = productionQuery.Where(p => p.LinesId == lineId);
+                }
+
+                if (machineId.HasValue)
+                {
+                    deadTimeQuery = deadTimeQuery.Where(dt =>
+                        _context.Production.Any(p => p.DeadTimesId == dt.Id && p.MachineId == machineId));
+
+                    productionQuery = productionQuery.Where(p => p.MachineId == machineId);
+                }
+
+                if (shiftId.HasValue)
+                {
+                    deadTimeQuery = deadTimeQuery.Where(dt =>
+                        _context.Production.Any(p => p.DeadTimesId == dt.Id &&
+                            _context.WorkShiftHours.Any(wsh =>
+                                wsh.HourId == p.HourId && wsh.WorkShiftId == shiftId)));
+
+                    productionQuery = productionQuery.Where(p =>
+                        _context.WorkShiftHours.Any(wsh =>
+                            wsh.HourId == p.HourId && wsh.WorkShiftId == shiftId));
+                }
 
                 var result = await _context.Production
                     .Where(p => p.Hour.Date >= startDate &&
@@ -446,29 +482,89 @@ namespace ETE.Controllers
         [HttpGet]
         [Route("GetKeyMetrics")]
         public async Task<IActionResult> GetKeyMetrics(
-            [FromQuery] int? lineId = null, 
+            [FromQuery] int? lineId = null,
             [FromQuery] int? shiftId = null,
-            [FromQuery] DateTime? startDate = null, 
+            [FromQuery] int? machineId = null,
+            [FromQuery] DateTime? startDate = null,
             [FromQuery] DateTime? endDate = null)
         {
             try
             {
-                var endDateValue = endDate ?? DateTime.Now;
-                var startDateValue = startDate ?? endDateValue.AddDays(-7);
+                if (startDate.HasValue)
+                    startDate = DateTime.SpecifyKind(startDate.Value, DateTimeKind.Utc).ToLocalTime();
+                if (endDate.HasValue)
+                    endDate = DateTime.SpecifyKind(endDate.Value, DateTimeKind.Utc).ToLocalTime();
 
-                var totalDeadTime = await _context.DeadTimes
-                    .SumAsync(dt => dt.Minutes ?? 0);
+                var deadTimeQuery = _context.DeadTimes.AsQueryable();
+                var productionQuery = _context.Production.AsQueryable();
 
-                var avgDeadTime = await _context.DeadTimes
-                    .AverageAsync(dt => dt.Minutes ?? 0);
+                if (startDate.HasValue || endDate.HasValue)
+                {
+                    var startDateValue = startDate ?? DateTime.MinValue;
+                    var endDateValue = endDate ?? DateTime.MaxValue;
 
-                var totalScrap = await _context.Production
-                     .Where(p => p.Scrap != null)
-                     .SumAsync(p => p.Scrap ?? 0);
+                    endDateValue = endDateValue.Date.AddDays(1).AddTicks(-1);
 
-                var avgScrap = await _context.Production
-                    .Where(p => p.Scrap != null)
-                    .AverageAsync(p => p.Scrap ?? 0);
+                    deadTimeQuery = deadTimeQuery.Where(dt =>
+                        dt.RegistrationDate >= startDateValue &&
+                        dt.RegistrationDate <= endDateValue);
+
+                    productionQuery = productionQuery.Where(p =>
+                        p.RegistrationDate >= startDateValue &&
+                        p.RegistrationDate <= endDateValue);
+                }
+
+                if (lineId.HasValue)
+                {
+                    deadTimeQuery = deadTimeQuery.Where(dt =>
+                        _context.Production.Any(p => p.DeadTimesId == dt.Id && p.LinesId == lineId));
+
+                    productionQuery = productionQuery.Where(p => p.LinesId == lineId);
+                }
+
+                if (machineId.HasValue)
+                {
+                    deadTimeQuery = deadTimeQuery.Where(dt =>
+                        _context.Production.Any(p => p.DeadTimesId == dt.Id && p.MachineId == machineId));
+
+                    productionQuery = productionQuery.Where(p => p.MachineId == machineId);
+                }
+
+                if (shiftId.HasValue)
+                {
+                    deadTimeQuery = deadTimeQuery.Where(dt =>
+                        _context.Production.Any(p => p.DeadTimesId == dt.Id &&
+                            _context.WorkShiftHours.Any(wsh =>
+                                wsh.HourId == p.HourId && wsh.WorkShiftId == shiftId)));
+
+                    productionQuery = productionQuery.Where(p =>
+                        _context.WorkShiftHours.Any(wsh =>
+                            wsh.HourId == p.HourId && wsh.WorkShiftId == shiftId));
+                }
+
+                var totalDeadTime = await deadTimeQuery.SumAsync(dt => dt.Minutes ?? 0);
+                var totalScrap = await productionQuery.SumAsync(p => p.Scrap ?? 0);
+
+                var avgDeadTimeQuery = _context.DeadTimes.AsQueryable();
+                var avgScrapQuery = _context.Production.AsQueryable();
+
+                if (startDate.HasValue || endDate.HasValue)
+                {
+                    var startDateValue = startDate ?? DateTime.MinValue;
+                    var endDateValue = endDate ?? DateTime.MaxValue;
+                    endDateValue = endDateValue.Date.AddDays(1).AddTicks(-1);
+
+                    avgDeadTimeQuery = avgDeadTimeQuery.Where(dt =>
+                        dt.RegistrationDate >= startDateValue &&
+                        dt.RegistrationDate <= endDateValue);
+
+                    avgScrapQuery = avgScrapQuery.Where(p =>
+                        p.RegistrationDate >= startDateValue &&
+                        p.RegistrationDate <= endDateValue);
+                }
+
+                var avgDeadTime = await avgDeadTimeQuery.AverageAsync(dt => dt.Minutes ?? 0);
+                var avgScrap = await avgScrapQuery.AverageAsync(p => p.Scrap ?? 0);
 
                 return Ok(new
                 {
@@ -476,6 +572,14 @@ namespace ETE.Controllers
                     DeadTimeVsAvg = totalDeadTime - avgDeadTime,
                     Scrap = totalScrap,
                     ScrapVsAvg = totalScrap - avgScrap,
+                    Metadata = new
+                    {
+                        StartDate = startDate,
+                        EndDate = endDate,
+                        LineFilter = lineId,
+                        MachineFilter = machineId,
+                        ShiftFilter = shiftId
+                    }
                 });
             }
             catch (Exception ex)
