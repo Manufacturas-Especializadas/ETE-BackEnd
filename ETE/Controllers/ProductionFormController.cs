@@ -1,5 +1,6 @@
 ﻿using ClosedXML.Excel;
 using DocumentFormat.OpenXml.Spreadsheet;
+using DocumentFormat.OpenXml.Wordprocessing;
 using ETE.Dtos;
 using ETE.Models;
 using Microsoft.AspNetCore.Http;
@@ -125,10 +126,9 @@ namespace ETE.Controllers
         {
             try
             {
-                startDate ??= DateTime.Now.AddDays(-30);
-                endDate ??= DateTime.Now;
+                if (!startDate.HasValue) startDate = DateTime.Now.AddDays(-30);
 
-                endDate = endDate.Value.Date.AddDays(1).AddTicks(-1);
+                if (!endDate.HasValue) endDate = DateTime.Now;
 
                 var hourIdsQuery = _context.Hours
                     .Where(h => h.Date >= startDate && h.Date <= endDate)
@@ -327,13 +327,19 @@ namespace ETE.Controllers
         public async Task<IActionResult> GetAvailabilityDataNoDateFilter(
             [FromQuery] int? lineId,
             [FromQuery] int? shiftId,
-            [FromQuery] int? machineId)
+            [FromQuery] int? machineId,
+            [FromQuery] DateTime? startDate = null,
+            [FromQuery] DateTime? endDate = null)
         {
             try
             {
                 var hourQuery = _context.Hours.AsQueryable();
 
                 var productionQuery = _context.Production.AsQueryable();
+
+                if (!startDate.HasValue) startDate = DateTime.Now.AddDays(-30);
+
+                if (!endDate.HasValue) endDate = DateTime.Now;
 
                 if (shiftId.HasValue)
                 {
@@ -399,12 +405,15 @@ namespace ETE.Controllers
         public async Task<IActionResult> GetDeadTimeByReasonLast6Days(
             [FromQuery] int? lineId = null,
             [FromQuery] int? shiftId = null,
-            [FromQuery] int? machineId = null)
+            [FromQuery] int? machineId = null,
+            [FromQuery] DateTime? startDate = null,
+            [FromQuery] DateTime? endDate = null)
         {
             try
             {
-                var endDate = DateTime.Today;
-                var startDate = endDate.AddDays(-6);
+                if (!startDate.HasValue) startDate = DateTime.Now.AddDays(-30);
+
+                if (!endDate.HasValue) endDate = DateTime.Now;
 
                 var deadTimeQuery = _context.DeadTimes.AsQueryable();
                 var productionQuery = _context.Production.AsQueryable();                
@@ -490,29 +499,13 @@ namespace ETE.Controllers
         {
             try
             {
-                if (startDate.HasValue)
-                    startDate = DateTime.SpecifyKind(startDate.Value, DateTimeKind.Utc).ToLocalTime();
-                if (endDate.HasValue)
-                    endDate = DateTime.SpecifyKind(endDate.Value, DateTimeKind.Utc).ToLocalTime();
 
                 var deadTimeQuery = _context.DeadTimes.AsQueryable();
                 var productionQuery = _context.Production.AsQueryable();
+                
+                if (!startDate.HasValue) startDate = DateTime.Now.AddDays(-30);
 
-                if (startDate.HasValue || endDate.HasValue)
-                {
-                    var startDateValue = startDate ?? DateTime.MinValue;
-                    var endDateValue = endDate ?? DateTime.MaxValue;
-
-                    endDateValue = endDateValue.Date.AddDays(1).AddTicks(-1);
-
-                    deadTimeQuery = deadTimeQuery.Where(dt =>
-                        dt.RegistrationDate >= startDateValue &&
-                        dt.RegistrationDate <= endDateValue);
-
-                    productionQuery = productionQuery.Where(p =>
-                        p.RegistrationDate >= startDateValue &&
-                        p.RegistrationDate <= endDateValue);
-                }
+                if (!endDate.HasValue) endDate = DateTime.Now;
 
                 if (lineId.HasValue)
                 {
