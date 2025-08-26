@@ -1,0 +1,90 @@
+﻿{
+   "CodeGenerationMode": 4,
+   "ContextClassName": "AppDbContext",
+   "ContextNamespace": null,
+   "FilterSchemas": false,
+   "IncludeConnectionString": false,
+   "MinimumProductVersion": "2.6.0",
+   "ModelNamespace": null,
+   "OutputContextPath": null,
+   "OutputPath": "Models",
+   "PreserveCasingWithRegex": true,
+   "ProjectRootNamespace": "ETE",
+   "Schemas": null,
+   "SelectedHandlebarsLanguage": 2,
+   "SelectedToBeGenerated": 0,
+   "T4TemplatePath": null,
+   "Tables": [
+      {
+         "Name": "[dbo].[Codes]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[DeadTimes]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Hours]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Lines]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Machine]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[MasterEngineering]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Process]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Production]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[Reason]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[WorkShift]",
+         "ObjectType": 0
+      },
+      {
+         "Name": "[dbo].[WorkShiftHours]",
+         "ObjectType": 0
+      }
+   ],
+   "UiHint": null,
+   "UncountableWords": null,
+   "UseAsyncStoredProcedureCalls": true,
+   "UseBoolPropertiesWithoutDefaultSql": false,
+   "UseDatabaseNames": false,
+   "UseDatabaseNamesForRoutines": true,
+   "UseDateOnlyTimeOnly": true,
+   "UseDbContextSplitting": false,
+   "UseDecimalDataAnnotationForSprocResult": true,
+   "UseFluentApiOnly": true,
+   "UseHandleBars": false,
+   "UseHierarchyId": false,
+   "UseInflector": false,
+   "UseInternalAccessModifiersForSprocsAndFunctions": false,
+   "UseLegacyPluralizer": false,
+   "UseManyToManyEntity": true,
+   "UseNoDefaultConstructor": false,
+   "UseNoNavigations": false,
+   "UseNoObjectFilter": false,
+   "UseNodaTime": false,
+   "UseNullableReferences": false,
+   "UsePrefixNavigationNaming": false,
+   "UseSchemaFolders": false,
+   "UseSchemaNamespaces": false,
+   "UseSpatial": false,
+   "UseT4": false,
+   "UseT4Split": false
+}

@@ -1,0 +1,15 @@
+﻿using System;
+using System.Collections.Generic;
+
+namespace ETE.Models;
+
+public partial class WorkShiftHours
+{
+    public int WorkShiftId { get; set; }
+
+    public int HourId { get; set; }
+
+    public virtual Hours Hour { get; set; }
+
+    public virtual WorkShift WorkShift { get; set; }
+}
