@@ -128,6 +128,7 @@ namespace ETE.Controllers
             {
                 var productionQuery = _context.Production.AsQueryable();
 
+                // CORRECCIÓN: Usar RegistrationDate en lugar de Hour.Date
                 if (startDate.HasValue || endDate.HasValue)
                 {
                     var startDateValue = startDate ?? DateTime.MinValue;
@@ -135,8 +136,8 @@ namespace ETE.Controllers
                     endDateValue = endDateValue.Date.AddDays(1).AddTicks(-1);
 
                     productionQuery = productionQuery.Where(p =>
-                        p.Hour.Date >= startDateValue &&
-                        p.Hour.Date <= endDateValue);
+                        p.RegistrationDate >= startDateValue &&  // ← CORREGIDO
+                        p.RegistrationDate <= endDateValue);     // ← CORREGIDO
                 }
 
                 if (lineId.HasValue)
@@ -149,56 +150,27 @@ namespace ETE.Controllers
                     productionQuery = productionQuery.Where(p => p.MachineId == machineId.Value);
                 }
 
-                if (shiftId.HasValue)                 
+                if (shiftId.HasValue)
                 {
                     productionQuery = productionQuery.Where(p =>
-                            _context.WorkShiftHours.Any(wsh =>
-                                wsh.HourId == p.HourId && wsh.WorkShiftId == shiftId.Value));
+                        _context.WorkShiftHours.Any(wsh =>
+                            wsh.HourId == p.HourId && wsh.WorkShiftId == shiftId.Value));
                 }
 
                 var totals = await productionQuery
-                            .GroupBy(p => 1)
-                            .Select(g => new
-                            {
-                                TotalPieces = g.Sum(p => p.PieceQuantity ?? 0),
-                                TotalScrap = g.Sum(p => p.Scrap ?? 0)
-                            })
-                            .FirstOrDefaultAsync();
+                    .GroupBy(p => 1)
+                    .Select(g => new
+                    {
+                        TotalPieces = g.Sum(p => p.PieceQuantity ?? 0),
+                        TotalScrap = g.Sum(p => p.Scrap ?? 0)
+                    })
+                    .FirstOrDefaultAsync();
 
-                if((totals == null || (totals.TotalPieces == 0 && totals.TotalScrap == 0)) && 
-                    (lineId.HasValue || machineId.HasValue || shiftId.HasValue))
+                // CORRECCIÓN: Simplificar la lógica de reintento
+                if (totals == null)
                 {
-                    productionQuery = _context.Production.AsQueryable();
-
-                    if (lineId.HasValue)
-                    {
-                        productionQuery = productionQuery.Where(p => p.LinesId == lineId.Value);
-                    }
-
-                    if (machineId.HasValue)
-                    {
-                        productionQuery = productionQuery.Where(p => p.MachineId == machineId.Value);
-                    }
-
-                    if (shiftId.HasValue)
-                    {
-                        productionQuery = productionQuery.Where(p =>
-                            _context.WorkShiftHours.Any(wsh =>
-                                wsh.HourId == p.HourId && wsh.WorkShiftId == shiftId.Value));
-
-                        totals = await productionQuery
-                                .GroupBy(p => 1)
-                                .Select(g => new
-                                {
-                                    TotalPieces = g.Sum(p => p.PieceQuantity ?? 0),
-                                    TotalScrap = g.Sum(p => p.Scrap ?? 0)
-                                })
-                                .FirstOrDefaultAsync();
-                    }
-
+                    totals = new { TotalPieces = 0, TotalScrap = 0 };
                 }
-
-                totals ??= new { TotalPieces = 0, TotalScrap = 0 };
 
                 var result = new
                 {
@@ -210,9 +182,8 @@ namespace ETE.Controllers
                 };
 
                 return Ok(result);
-
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 return StatusCode(500, $"Error interno del servidor: {ex.Message}");
             }
@@ -220,7 +191,7 @@ namespace ETE.Controllers
 
         [HttpGet]
         [Route("GetAvailabilityData")]
-        public async Task<IActionResult> GetAvailabilityData(
+        public async Task<IActionResult> GetAvailabilityDataOptimized(
             [FromQuery] int? lineId,
             [FromQuery] int? shiftId,
             [FromQuery] int? machineId,
@@ -229,7 +200,7 @@ namespace ETE.Controllers
         {
             try
             {
-                var hourQuery = _context.Hours.AsQueryable();
+                var productionQuery = _context.Production.AsQueryable();
 
                 if (startDate.HasValue || endDate.HasValue)
                 {
@@ -237,85 +208,73 @@ namespace ETE.Controllers
                     var endDateValue = endDate ?? DateTime.MaxValue;
                     endDateValue = endDateValue.Date.AddDays(1).AddTicks(-1);
 
-                    hourQuery = hourQuery.Where(h => h.Date >= startDateValue && h.Date <= endDateValue);
+                    productionQuery = productionQuery.Where(p =>
+                        p.RegistrationDate >= startDateValue &&
+                        p.RegistrationDate <= endDateValue);
                 }
+
+                if (lineId.HasValue)
+                    productionQuery = productionQuery.Where(p => p.LinesId == lineId.Value);
+
+                if (machineId.HasValue)
+                    productionQuery = productionQuery.Where(p => p.MachineId == machineId.Value);
 
                 if (shiftId.HasValue)
                 {
-                    hourQuery = hourQuery
-                        .Where(h => _context.WorkShiftHours
-                            .Any(wsh => wsh.HourId == h.Id && wsh.WorkShiftId == shiftId.Value));
+                    var validHours = await _context.WorkShiftHours
+                        .Where(wsh => wsh.WorkShiftId == shiftId.Value)
+                        .Select(wsh => wsh.HourId)
+                        .ToListAsync();
+
+                    productionQuery = productionQuery.Where(p => validHours.Contains(p.HourId));
                 }
 
-                var filteredHours = await hourQuery.ToListAsync();
+                var relevantDeadTimeIds = await productionQuery
+                    .Where(p => p.DeadTimesId != null)
+                    .Select(p => p.DeadTimesId.Value)
+                    .Distinct()
+                    .ToListAsync();
 
-                if (!filteredHours.Any())
+                var totalDeadTime = 0;
+                if (relevantDeadTimeIds.Any())
                 {
-                    return Ok(new
-                    {
-                        totalTime = 0,
-                        deadTime = 0,
-                        operatingTime = 0,
-                        percentage = 0
-                    });
+                    totalDeadTime = await _context.DeadTimes
+                        .Where(dt => relevantDeadTimeIds.Contains(dt.Id))
+                        .SumAsync(dt => dt.Minutes ?? 0);
                 }
 
-                int totalPlannedTime = filteredHours.Count * 60;
+                var totalHours = await productionQuery.Select(p => p.HourId).Distinct().CountAsync();
+                var totalMachines = await productionQuery.Select(p => p.MachineId).Distinct().CountAsync();
 
-                var filteredHourIds = filteredHours.Select(h => h.Id).ToList();
+                int totalPlannedTime = totalHours * totalMachines * 60;
 
-                var deadTimesQuery = from p in _context.Production
-                                     join dt in _context.DeadTimes on p.DeadTimesId equals dt.Id
-                                     where filteredHourIds.Contains(p.HourId)
-                                     select new { dt.Minutes, p.HourId, p.LinesId, p.MachineId };
+                if (totalDeadTime > totalPlannedTime)
+                    totalDeadTime = totalPlannedTime;
 
-                if (lineId.HasValue)
-                {
-                    deadTimesQuery = deadTimesQuery.Where(x => x.LinesId == lineId.Value);
-                }
+                int totalWorkedTime = totalPlannedTime - totalDeadTime;
 
-                if (machineId.HasValue)
-                {
-                    deadTimesQuery = deadTimesQuery.Where(x => x.MachineId == machineId.Value);
-                }
-
-                var allDeadTimes = await deadTimesQuery.ToListAsync();
-
-                var deadTimesByHour = allDeadTimes
-                    .GroupBy(x => x.HourId)
-                    .Select(g => new
-                    {
-                        HourId = g.Key,
-                        MaxMinutes = g.Max(x => x.Minutes ?? 0) // Tomar el mayor tiempo muerto por hora
-                    })
-                    .ToList();
-
-                int totalDeadTime = deadTimesByHour.Sum(x => x.MaxMinutes);
-
-                totalDeadTime = Math.Min(totalDeadTime, totalPlannedTime);
-
-                int operatingTime = totalPlannedTime - totalDeadTime;
-
-                double availabilityPercentage = totalPlannedTime > 0
-                    ? Math.Round((double)operatingTime / totalPlannedTime * 100, 2)
+                double availability = totalPlannedTime > 0
+                    ? (totalWorkedTime / (double)totalPlannedTime) * 100
                     : 0;
-
-                availabilityPercentage = Math.Max(0, Math.Min(100, availabilityPercentage));
-
-                Console.WriteLine($"Total planned: {totalPlannedTime}, Dead time: {totalDeadTime}, Operating: {operatingTime}, Availability: {availabilityPercentage}%");
 
                 return Ok(new
                 {
                     totalTime = totalPlannedTime,
                     deadTime = totalDeadTime,
-                    operatingTime = operatingTime,
-                    percentage = availabilityPercentage
+                    operatingTime = totalWorkedTime,
+                    percentage = Math.Round(availability, 2),
+                    debug = new
+                    {
+                        TotalHoras = totalHours,
+                        TotalMaquinas = totalMachines,
+                        TotalDeadTimeRaw = totalDeadTime,
+                        TotalPlannedTime = totalPlannedTime
+                    }
                 });
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error: {ex.Message}");
-                return StatusCode(500, $"Error al calcular la disponibilidad: {ex.Message}");
+                return StatusCode(500, $"Error: {ex.Message}");
             }
         }
 
@@ -482,73 +441,73 @@ namespace ETE.Controllers
         [HttpGet]
         [Route("GetDeadTimeByReasonLast6Days")]
         public async Task<IActionResult> GetDeadTimeByReasonLast6Days(
-            [FromQuery] int? lineId = null,
-            [FromQuery] int? shiftId = null,
-            [FromQuery] int? machineId = null,
-            [FromQuery] DateTime? startDate = null,
-            [FromQuery] DateTime? endDate = null)
+             [FromQuery] int? lineId = null,
+             [FromQuery] int? shiftId = null,
+             [FromQuery] int? machineId = null,
+             [FromQuery] DateTime? startDate = null,
+             [FromQuery] DateTime? endDate = null)
         {
             try
             {
-                if (!startDate.HasValue) startDate = DateTime.Now.AddDays(-30);
+                IQueryable<DeadTimes> deadTimeQuery = _context.DeadTimes;
 
-                if (!endDate.HasValue) endDate = DateTime.Now;
+                if (startDate.HasValue || endDate.HasValue)
+                {
+                    var startDateValue = startDate ?? DateTime.MinValue;
+                    var endDateValue = endDate ?? DateTime.MaxValue;
+                    endDateValue = endDateValue.Date.AddDays(1).AddTicks(-1);
 
-                var deadTimeQuery = _context.DeadTimes.AsQueryable();
-                var productionQuery = _context.Production.AsQueryable();                
+                    deadTimeQuery = deadTimeQuery.Where(dt =>
+                        dt.RegistrationDate >= startDateValue &&
+                        dt.RegistrationDate <= endDateValue);
+                }
+
+                IQueryable<Production> productionQuery = _context.Production.AsQueryable();
+
+                if (startDate.HasValue || endDate.HasValue)
+                {
+                    var startDateValue = startDate ?? DateTime.MinValue;
+                    var endDateValue = endDate ?? DateTime.MaxValue;
+                    endDateValue = endDateValue.Date.AddDays(1).AddTicks(-1);
+
+                    productionQuery = productionQuery.Where(p =>
+                        p.RegistrationDate >= startDateValue &&
+                        p.RegistrationDate <= endDateValue);
+                }
 
                 if (lineId.HasValue)
-                {
-                    deadTimeQuery = deadTimeQuery.Where(dt =>
-                        _context.Production.Any(p => p.DeadTimesId == dt.Id && p.LinesId == lineId));
-
-                    productionQuery = productionQuery.Where(p => p.LinesId == lineId);
-                }
+                    productionQuery = productionQuery.Where(p => p.LinesId == lineId.Value);
 
                 if (machineId.HasValue)
-                {
-                    deadTimeQuery = deadTimeQuery.Where(dt =>
-                        _context.Production.Any(p => p.DeadTimesId == dt.Id && p.MachineId == machineId));
-
-                    productionQuery = productionQuery.Where(p => p.MachineId == machineId);
-                }
+                    productionQuery = productionQuery.Where(p => p.MachineId == machineId.Value);
 
                 if (shiftId.HasValue)
                 {
-                    deadTimeQuery = deadTimeQuery.Where(dt =>
-                        _context.Production.Any(p => p.DeadTimesId == dt.Id &&
-                            _context.WorkShiftHours.Any(wsh =>
-                                wsh.HourId == p.HourId && wsh.WorkShiftId == shiftId)));
-
                     productionQuery = productionQuery.Where(p =>
                         _context.WorkShiftHours.Any(wsh =>
-                            wsh.HourId == p.HourId && wsh.WorkShiftId == shiftId));
+                            wsh.HourId == p.HourId && wsh.WorkShiftId == shiftId.Value));
                 }
 
-                var result = await _context.Production
-                    .Where(p => p.Hour.Date >= startDate &&
-                               p.Hour.Date <= endDate &&
-                               p.DeadTimesId != null &&
-                               (lineId == null || p.LinesId == lineId))
-                    .GroupBy(p => p.DeadTimes.Reason.Name)
-                    .Select(g => new {
+                var relevantDeadTimeIds = await productionQuery
+                    .Where(p => p.DeadTimesId != null)
+                    .Select(p => p.DeadTimesId.Value)
+                    .Distinct()
+                    .ToListAsync();
+
+                if (lineId.HasValue || machineId.HasValue || shiftId.HasValue)
+                {
+                    deadTimeQuery = deadTimeQuery.Where(dt => relevantDeadTimeIds.Contains(dt.Id));
+                }
+
+                var result = await deadTimeQuery
+                    .GroupBy(dt => dt.Reason.Name)
+                    .Select(g => new
+                    {
                         Reason = g.Key ?? "Sin razón",
-                        TotalMinutes = g.Sum(p => p.DeadTimes.Minutes ?? 0)
+                        TotalMinutes = g.Sum(dt => dt.Minutes)
                     })
                     .OrderByDescending(x => x.TotalMinutes)
                     .ToListAsync();
-               
-                if (!result.Any())
-                {
-                    result = await _context.DeadTimes
-                        .GroupBy(dt => dt.Reason.Name)
-                        .Select(g => new {
-                            Reason = g.Key ?? "Sin razón",
-                            TotalMinutes = g.Sum(dt => dt.Minutes ?? 0)
-                        })
-                        .OrderByDescending(x => x.TotalMinutes)
-                        .ToListAsync();
-                }
 
                 var totalMinutes = result.Sum(x => x.TotalMinutes);
                 var averageMinutes = totalMinutes / 6.0;
@@ -558,7 +517,16 @@ namespace ETE.Controllers
                     labels = result.Select(x => x.Reason).ToArray(),
                     data = result.Select(x => x.TotalMinutes).ToArray(),
                     totalMinutes,
-                    averageMinutes
+                    averageMinutes,
+                    Metadata = new
+                    {
+                        StartDate = startDate,
+                        EndDate = endDate,
+                        LineFilter = lineId,
+                        MachineFilter = machineId,
+                        ShiftFilter = shiftId,
+                        HasDateFilter = startDate.HasValue || endDate.HasValue
+                    }
                 });
             }
             catch (Exception ex)
@@ -578,8 +546,8 @@ namespace ETE.Controllers
         {
             try
             {
-                var deadTimeQuery = _context.DeadTimes.AsQueryable();
-                var productionQuery = _context.Production.AsQueryable();
+                IQueryable<DeadTimes> deadTimeQuery = _context.DeadTimes;
+                IQueryable<Production> productionQuery = _context.Production;
 
                 if (startDate.HasValue || endDate.HasValue)
                 {
@@ -598,26 +566,37 @@ namespace ETE.Controllers
 
                 if (lineId.HasValue)
                 {
-                    deadTimeQuery = deadTimeQuery.Where(dt =>
-                        _context.Production.Any(p => p.DeadTimesId == dt.Id && p.LinesId == lineId.Value));
+                    var deadTimeIdsFromLine = productionQuery
+                        .Where(p => p.LinesId == lineId.Value && p.DeadTimesId != null)
+                        .Select(p => p.DeadTimesId.Value)
+                        .Distinct();
+
+                    deadTimeQuery = deadTimeQuery.Where(dt => deadTimeIdsFromLine.Contains(dt.Id));
 
                     productionQuery = productionQuery.Where(p => p.LinesId == lineId.Value);
                 }
 
                 if (machineId.HasValue)
                 {
-                    deadTimeQuery = deadTimeQuery.Where(dt =>
-                        _context.Production.Any(p => p.DeadTimesId == dt.Id && p.MachineId == machineId.Value));
+                    var deadTimeIdsFromMachine = productionQuery
+                        .Where(p => p.MachineId == machineId.Value && p.DeadTimesId != null)
+                        .Select(p => p.DeadTimesId.Value)
+                        .Distinct();
+
+                    deadTimeQuery = deadTimeQuery.Where(dt => deadTimeIdsFromMachine.Contains(dt.Id));
 
                     productionQuery = productionQuery.Where(p => p.MachineId == machineId.Value);
                 }
 
                 if (shiftId.HasValue)
                 {
-                    deadTimeQuery = deadTimeQuery.Where(dt =>
-                        _context.Production.Any(p => p.DeadTimesId == dt.Id &&
-                            _context.WorkShiftHours.Any(wsh =>
-                                wsh.HourId == p.HourId && wsh.WorkShiftId == shiftId.Value)));
+                    var deadTimeIdsFromShift = productionQuery
+                        .Where(p => _context.WorkShiftHours.Any(wsh =>
+                            wsh.HourId == p.HourId && wsh.WorkShiftId == shiftId.Value) && p.DeadTimesId != null)
+                        .Select(p => p.DeadTimesId.Value)
+                        .Distinct();
+
+                    deadTimeQuery = deadTimeQuery.Where(dt => deadTimeIdsFromShift.Contains(dt.Id));
 
                     productionQuery = productionQuery.Where(p =>
                         _context.WorkShiftHours.Any(wsh =>
