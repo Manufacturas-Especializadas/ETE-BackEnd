@@ -128,7 +128,6 @@ namespace ETE.Controllers
             {
                 var productionQuery = _context.Production.AsQueryable();
 
-                // CORRECCIÓN: Usar RegistrationDate en lugar de Hour.Date
                 if (startDate.HasValue || endDate.HasValue)
                 {
                     var startDateValue = startDate ?? DateTime.MinValue;
@@ -136,8 +135,8 @@ namespace ETE.Controllers
                     endDateValue = endDateValue.Date.AddDays(1).AddTicks(-1);
 
                     productionQuery = productionQuery.Where(p =>
-                        p.RegistrationDate >= startDateValue &&  // ← CORREGIDO
-                        p.RegistrationDate <= endDateValue);     // ← CORREGIDO
+                        p.RegistrationDate >= startDateValue &&
+                        p.RegistrationDate <= endDateValue);
                 }
 
                 if (lineId.HasValue)
@@ -165,8 +164,7 @@ namespace ETE.Controllers
                         TotalScrap = g.Sum(p => p.Scrap ?? 0)
                     })
                     .FirstOrDefaultAsync();
-
-                // CORRECCIÓN: Simplificar la lógica de reintento
+               
                 if (totals == null)
                 {
                     totals = new { TotalPieces = 0, TotalScrap = 0 };
