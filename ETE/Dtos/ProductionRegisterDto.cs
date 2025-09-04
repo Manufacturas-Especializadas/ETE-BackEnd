@@ -25,6 +25,8 @@ namespace ETE.Dtos
         [Required]
         public int MachineId { get; set; }
 
+        public DateTime? ManualDate { get; set; }
+
         public List<DeadTimeDto> DeadTimes { get; set; }
     }
 }

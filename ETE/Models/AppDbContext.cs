@@ -192,6 +192,9 @@ public partial class AppDbContext : DbContext
             entity.Property(e => e.HourId).HasColumnName("hourId");
             entity.Property(e => e.LinesId).HasColumnName("linesId");
             entity.Property(e => e.MachineId).HasColumnName("machineId");
+            entity.Property(e => e.ManualDate)
+                .HasColumnType("datetime")
+                .HasColumnName("manualDate");
             entity.Property(e => e.MasterEnginnerId).HasColumnName("masterEnginnerId");
             entity.Property(e => e.PartNumber)
                 .HasMaxLength(80)

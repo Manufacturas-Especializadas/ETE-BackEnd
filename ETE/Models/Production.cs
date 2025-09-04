@@ -29,6 +29,8 @@ public partial class Production
 
     public DateTime? RegistrationDate { get; set; }
 
+    public DateTime? ManualDate { get; set; }
+
     public virtual DeadTimes DeadTimes { get; set; }
 
     public virtual Hours Hour { get; set; }
