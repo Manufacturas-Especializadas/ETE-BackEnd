@@ -641,12 +641,14 @@ namespace ETE.Controllers
                     p.Id,
                     p.RegistrationDate,
                     Line = p.Lines.Name,
+                    p.PartNumber,
                     Machine = p.Process.Machine.FirstOrDefault()!.Name,
                     Hour = p.Hour.Time,
                     p.PieceQuantity,
                     p.DeadTimes.Minutes,
                     p.Scrap
                 })
+                .OrderByDescending(p => p.Id)
                 .AsNoTracking()
                 .ToListAsync();
 
@@ -661,6 +663,7 @@ namespace ETE.Controllers
             {
                 p.Id,
                 p.RegistrationDate,
+                p.PartNumber,
                 Line = p.Lines.Name,
                 Machine = p.Process.Machine.FirstOrDefault()!.Name,
                 Hour = p.Hour.Time,
@@ -677,21 +680,23 @@ namespace ETE.Controllers
 
                 workSheet.Cell(1, 1).Value = "Fecha";
                 workSheet.Cell(1, 2).Value = "Línea";
-                workSheet.Cell(1, 3).Value = "Máquina";
-                workSheet.Cell(1, 4).Value = "Hora";
-                workSheet.Cell(1, 5).Value = "Cantidad de Piezas";
-                workSheet.Cell(1, 6).Value = "Tiempo Muerto (Minutos)";
-                workSheet.Cell(1, 7).Value = "Scrap";
+                workSheet.Cell(1, 3).Value = "Numero de parte";
+                workSheet.Cell(1, 4).Value = "Máquina";
+                workSheet.Cell(1, 5).Value = "Hora";
+                workSheet.Cell(1, 6).Value = "Cantidad de Piezas";
+                workSheet.Cell(1, 7).Value = "Tiempo Muerto (Minutos)";
+                workSheet.Cell(1, 8).Value = "Scrap";
 
                 for(int i = 0; i <  production.Count; i++)
                 {
                     workSheet.Cell(i + 2, 1).Value = production[i].RegistrationDate;
                     workSheet.Cell(i + 2, 2).Value = production[i].Line;
-                    workSheet.Cell(i + 2, 3).Value = production[i].Machine;
-                    workSheet.Cell(i + 2, 4).Value = production[i].Hour;
-                    workSheet.Cell(i + 2, 5).Value = production[i].PieceQuantity;
-                    workSheet.Cell(i + 2, 6).Value = production[i].Minutes;
-                    workSheet.Cell(i + 2, 7).Value = production[i].Scrap;
+                    workSheet.Cell(i + 2, 3).Value = production[i].PartNumber;
+                    workSheet.Cell(i + 2, 4).Value = production[i].Machine;
+                    workSheet.Cell(i + 2, 5).Value = production[i].Hour;
+                    workSheet.Cell(i + 2, 6).Value = production[i].PieceQuantity;
+                    workSheet.Cell(i + 2, 7).Value = production[i].Minutes;
+                    workSheet.Cell(i + 2, 8).Value = production[i].Scrap;
                 }
 
                 var stream = new MemoryStream();
