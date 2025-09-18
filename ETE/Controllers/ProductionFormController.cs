@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection.PortableExecutable;
 using System.Text.Json;
 
@@ -227,8 +228,18 @@ namespace ETE.Controllers
                     productionQuery = productionQuery.Where(p => validHourIds.Contains(p.HourId));
                 }
 
+                var faltaDeProgramaReasonIds = await _context.Reason
+                    .Where(r => EF.Functions.Like(r.Name, "%FALTA DE PROGRAMA%"))
+                    .Select(r => r.Id)
+                    .ToListAsync();
+
+                var faltaDeProgramaReasonIdSet = new HashSet<int>(faltaDeProgramaReasonIds);
+
+                var deadTimesQuery = _context.DeadTimes
+                    .Where(dt => !faltaDeProgramaReasonIdSet.Contains((int)dt.ReasonId));
+
                 var query = from p in productionQuery
-                            join dt in _context.DeadTimes on p.DeadTimesId equals dt.Id into dtGroup
+                            join dt in deadTimesQuery on p.DeadTimesId equals dt.Id into dtGroup
                             from dt in dtGroup.DefaultIfEmpty()
                             select new
                             {
@@ -250,6 +261,16 @@ namespace ETE.Controllers
                     ? (totalWorkedTime / (double)totalPlannedTime) * 100
                     : 0;
 
+                var totalExcludedMinutes = faltaDeProgramaReasonIds
+                    .Sum(id => _context.DeadTimes
+                        .Where(dt => dt.ReasonId == id)
+                        .Sum(dt => (int?)dt.Minutes)) ?? 0;
+
+                var totalExcludedRecords = faltaDeProgramaReasonIds
+                    .Sum(id => _context.DeadTimes
+                        .Where(dt => dt.ReasonId == id)
+                        .Count());
+
                 return Ok(new
                 {
                     totalTime = totalPlannedTime,
@@ -260,7 +281,11 @@ namespace ETE.Controllers
                     {
                         TotalRegistros = totalRecords,
                         TotalDeadTimeRaw = totalDeadTime,
-                        TotalPlannedTime = totalPlannedTime
+                        TotalPlannedTime = totalPlannedTime,
+                        ExcludedReasonName = "FALTA DE PROGRAMA",
+                        ExcludedReasonIds = faltaDeProgramaReasonIds, 
+                        TotalExcludedMinutes = totalExcludedMinutes,   
+                        TotalExcludedRecords = totalExcludedRecords 
                     }
                 });
             }
@@ -543,19 +568,17 @@ namespace ETE.Controllers
             [FromQuery] DateTime? endDate = null)
         {
             try
-            {
+            {               
+                DateTime effectiveStartDate = startDate ?? new DateTime(1900, 1, 1);
+                DateTime effectiveEndDate = endDate.HasValue
+                    ? endDate.Value.Date.AddDays(1).AddTicks(-1)
+                    : DateTime.MaxValue;
+
                 IQueryable<Production> productionQuery = _context.Production.AsQueryable();
 
-                if (startDate.HasValue || endDate.HasValue)
-                {
-                    var startDateValue = startDate ?? DateTime.MinValue;
-                    var endDateValue = endDate ?? DateTime.MaxValue;
-                    endDateValue = endDateValue.Date.AddDays(1).AddTicks(-1);
-
-                    productionQuery = productionQuery.Where(p =>
-                        p.RegistrationDate >= startDateValue &&
-                        p.RegistrationDate <= endDateValue);
-                }
+                productionQuery = productionQuery.Where(p =>
+                    p.RegistrationDate >= effectiveStartDate &&
+                    p.RegistrationDate <= effectiveEndDate);
 
                 if (lineId.HasValue)
                     productionQuery = productionQuery.Where(p => p.LinesId == lineId.Value);
@@ -573,39 +596,57 @@ namespace ETE.Controllers
                     productionQuery = productionQuery.Where(p => validHourIds.Contains(p.HourId));
                 }
 
+                var faltaDeProgramaReasonIds = await _context.Reason
+                    .Where(r => EF.Functions.Like(r.Name, "%FALTA DE PROGRAMA%"))
+                    .Select(r => r.Id)
+                    .ToListAsync();
+
                 var relevantDeadTimeIds = await productionQuery
                     .Where(p => p.DeadTimesId != null)
                     .Select(p => p.DeadTimesId.Value)
                     .Distinct()
                     .ToListAsync();
 
-                IQueryable<DeadTimes> deadTimeQuery = _context.DeadTimes;
-                if (relevantDeadTimeIds.Any())
+                if (!relevantDeadTimeIds.Any())
                 {
-                    deadTimeQuery = deadTimeQuery.Where(dt => relevantDeadTimeIds.Contains(dt.Id));
+                    var totalScrap1 = await productionQuery.SumAsync(p => p.Scrap ?? 0);
+                    return Ok(new
+                    {
+                        DeadTime = 0,
+                        DeadTimeVsAvg = 0,
+                        Scrap = totalScrap1,
+                        ScrapVsAvg = 0,
+                        Metadata = new
+                        {
+                            StartDate = startDate,
+                            EndDate = endDate,
+                            LineFilter = lineId,
+                            MachineFilter = machineId,
+                            ShiftFilter = shiftId,
+                            HasDateFilter = startDate.HasValue || endDate.HasValue
+                        }
+                    });
                 }
-                else
-                {
-                    deadTimeQuery = deadTimeQuery.Where(dt => false);
-                }
+
+                var deadTimeQuery = _context.DeadTimes
+                    .Where(dt => relevantDeadTimeIds.Contains(dt.Id) &&
+                                !faltaDeProgramaReasonIds.Contains(dt.ReasonId.Value));
 
                 var totalDeadTime = await deadTimeQuery.SumAsync(dt => dt.Minutes ?? 0);
+
                 var totalScrap = await productionQuery.SumAsync(p => p.Scrap ?? 0);
 
-                IQueryable<DeadTimes> avgDeadTimeQuery = _context.DeadTimes;
-                IQueryable<Production> avgScrapQuery = _context.Production;
-
-                if (startDate.HasValue || endDate.HasValue)
-                {
-                    var startDateValue = startDate ?? DateTime.MinValue;
-                    var endDateValue = endDate ?? DateTime.MaxValue;
-                    endDateValue = endDateValue.Date.AddDays(1).AddTicks(-1);
-
-                    avgDeadTimeQuery = avgDeadTimeQuery.Where(dt => dt.RegistrationDate >= startDateValue && dt.RegistrationDate <= endDateValue);
-                    avgScrapQuery = avgScrapQuery.Where(p => p.RegistrationDate >= startDateValue && p.RegistrationDate <= endDateValue);
-                }
+                var avgDeadTimeQuery = _context.DeadTimes
+                    .Where(dt => dt.RegistrationDate >= effectiveStartDate && 
+                                dt.RegistrationDate <= effectiveEndDate &&
+                                !faltaDeProgramaReasonIds.Contains(dt.ReasonId.Value));
 
                 var avgDeadTime = await avgDeadTimeQuery.AverageAsync(dt => dt.Minutes ?? 0);
+
+                var avgScrapQuery = _context.Production
+                    .Where(p => p.RegistrationDate >= effectiveStartDate &&
+                                p.RegistrationDate <= effectiveEndDate);
+
                 var avgScrap = await avgScrapQuery.AverageAsync(p => p.Scrap ?? 0);
 
                 return Ok(new
