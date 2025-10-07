@@ -25,6 +25,8 @@ public partial class AppDbContext : DbContext
 
     public virtual DbSet<MasterEngineering> MasterEngineering { get; set; }
 
+    public virtual DbSet<PartNumberMatrix> PartNumberMatrix { get; set; }
+
     public virtual DbSet<Process> Process { get; set; }
 
     public virtual DbSet<Production> Production { get; set; }
@@ -167,6 +169,16 @@ public partial class AppDbContext : DbContext
                 .HasMaxLength(60)
                 .IsUnicode(false)
                 .HasColumnName("verification");
+        });
+
+        modelBuilder.Entity<PartNumberMatrix>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PK__PartNumb__3214EC07350FF55C");
+
+            entity.Property(e => e.PartNumber)
+                .IsRequired()
+                .HasMaxLength(250)
+                .IsUnicode(false);
         });
 
         modelBuilder.Entity<Process>(entity =>
