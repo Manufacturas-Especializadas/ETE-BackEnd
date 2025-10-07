@@ -40,6 +40,10 @@
          "ObjectType": 0
       },
       {
+         "Name": "[dbo].[PartNumberMatrix]",
+         "ObjectType": 0
+      },
+      {
          "Name": "[dbo].[Process]",
          "ObjectType": 0
       },

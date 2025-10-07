@@ -69,6 +69,31 @@ namespace ETE.Controllers
         }
 
         [HttpGet]
+        [Route("ValidatePartNumber/{partNumber}")]
+        public async Task<IActionResult> ValidationPartNumber(string partNumber)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(partNumber))
+                {
+                    return BadRequest("El número de parte no puede estar vacío");
+                }
+
+                var normailzedPart = partNumber.Trim();
+
+                var exists = await _context.PartNumberMatrix
+                                .AsNoTracking()
+                                .AnyAsync(p => p.PartNumber == normailzedPart);
+
+                return Ok(new { Exists = exists });
+            }
+            catch(Exception ex)
+            {
+                return StatusCode(500, $"Error al validad el número de parte: {ex.Message}");
+            }
+        }
+
+        [HttpGet]
         [Route("GetProcessesByLine/{lineId}")]
         public async Task<IActionResult> GetProcessesBy(int lineId)
         {
